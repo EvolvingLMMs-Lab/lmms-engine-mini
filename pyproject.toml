@@ -6,12 +6,12 @@ requires = ["setuptools>=42", "wheel", "setuptools_scm[tomli]>=6.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "foo"
+name = "synvo_engine"
 version = "0.1.0"
 authors = [
     { name = "Your Name", email = "youremail@123.com" },
 ]
-description = "A python template"
+description = "A train engine"
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -40,9 +40,7 @@ exclude = [
 ]
 
 [project.scripts]
-foo = "foo.__main__:main"
-foo-func1 = "foo.__main__:func1"
-foo-func2 = "foo.__main__:func2"
+
 
 [project.urls]
 Homepage = "https://xxx.github.io"
