@@ -21,6 +21,11 @@ classifiers = [
 requires-python = ">=3.8"
 license = { text = "MIT" }
 dependencies = [
+    "datasets",
+    "hf_transfer",
+    "transformers",
+    "accelerate",
+    "pillow",
 ]
 
 [project.optional-dependencies]
