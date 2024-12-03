@@ -1,0 +1,922 @@
+[
+    {
+        "id": "000000033471",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000033471.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat are the colors of the bus in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The bus in the image is white and red."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What feature can be seen on the back of the bus?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The back of the bus features an advertisement."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Is the bus driving down the street or pulled off to the side?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The bus is driving down the street, which is crowded with people and other vehicles."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000052846",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000052846.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhere is the cat positioned in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The cat is positioned on top of the back of the couch in the living room."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the cat doing in the image?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The cat is coming out from some curtains onto the couch and is sitting or standing on top of it."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the color of the curtains near the cat?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The color of the curtains near the cat is red."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Besides the cat, what else can be seen on the couch?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "There are lots of pillows on the couch besides the cat."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What kind of room does the couch appear to be in?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The couch appears to be in a living room setting."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000334872",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000334872.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nAre the people in the image skiing downhill or cross-country skiing?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The people in the image are cross-country skiing in the woods, as they are skiing on a trail rather than a steep slope."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "How many people are in the image?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "There are two people in the image, both on skis in the snow."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What kind of environment are they skiing in?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "They are skiing in a wooded environment, following a trail through the trees while surrounded by snow."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Do the skiers have any additional gear with them besides their skis and poles?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Yes, the two male skiers are carrying backpacks while they ski through the woods. The backpacks might contain essentials for their skiing adventure, such as food, water, extra clothing, or safety equipment."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000319154",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000319154.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat color is the dog in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The dog in the image is brown."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What type of collar does the dog have?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The dog has a red collar."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the dog's position behind the window?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The dog is sitting behind the window."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "How does the dog appear to feel as it looks out the window?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "As the dog stares out the window, it appears to feel longingly, perhaps suggesting a desire to be outside or interacting with someone or something that has caught its attention."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Can you describe the dog's fur?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The dog has shaggy, fuzzy, and furry brown fur, which makes it look cute and cuddly."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000398214",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000398214.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat type of sign and traffic device can be seen in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "In the image, there is a street sign and a traffic light above a city road."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "How many traffic lights are visible in the image?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "There are a total of six traffic lights visible in the image."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the current color of the traffic lights in the image?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "All the traffic lights in the image are showing the color red at the same time."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What kind of setting is the image taken in?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The image is taken in a big city setting with a city street, an overpass, and buildings in the distance."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Are there any cars visible in the image?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Yes, there are cars visible on the city street in the image."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000520873",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000520873.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat is the girl eating in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The girl in the image is eating a dessert, which appears to be a graham cracker treat or a cookie sandwich."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Describe the girl's hair color and clothing."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The girl has blonde hair, and she is wearing a pink shirt."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What color is the plate that the dessert is on?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The dessert is on a green plate."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Is the girl looking at the camera or focusing on her dessert?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The girl is looking up at the camera while taking a bite of her dessert."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Where is the girl eating her dessert?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The girl is eating her dessert at the table."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000575173",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000575173.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat type of aircraft is shown in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The image shows a large passenger jet belonging to China Airlines."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Is the airplane in the air or on the ground?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The airplane is on the ground, as it is seen taxiing down the runway next to a body of water."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the location of the harbor or body of water in relation to the airplane?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The body of water is located right next to the runway where the airplane is taxiing."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What type of landscape is visible around the airplane?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The landscape visible around the airplane consists of a runway and a large body of water or lake located next to it."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000087286",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000087286.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat is hanging from the traffic light pole?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "A green street sign is hanging from the traffic light pole."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "How many stoplights are on the light post?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "There are two stoplights on the light post."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the background of the image where the street sign is situated?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The street sign on the pole is set against a backdrop of a daytime sky."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What can you infer about the location of the street sign?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The location of the street sign in the picture is an urban or suburban setting, likely at an intersection. The presence of the traffic light pole and stoplights suggests that the street sign is meant to guide motorists and pedestrians in navigating the area. The daytime sky in the background indicates that the photo was captured during daylight hours, which can provide better visibility for those trying to read the street sign."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000032286",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000032286.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nHow many chocolate-covered doughnuts are there in the image?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "There are seven chocolate-covered doughnuts in the image."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the color of the frosting on the doughnuts?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The frosting on the doughnuts is chocolate-colored."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Where are the doughnuts placed?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The doughnuts are placed in a white box, which is sitting on top of a counter."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the arrangement of the doughnuts?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The doughnuts are sitting together on a tray inside the white box."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What type of counter is the box of doughnuts placed on?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Based on the image, it is not possible to definitively determine the type of counter the box of doughnuts is placed on, as the focus is on the doughnuts themselves. The counter could be in a bakery, a supermarket, a cafe, or any other location where doughnuts are being sold or displayed."
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "id": "000000175217",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "./examples/sample_json_data/images/000000175217.jpg"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "\nWhat is the color of the sink and vanity in the bathroom?\nAnswer the question with GPT-T-COCO format."
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The sink and vanity in the bathroom are beige in color."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What is the color of the toilet in the bathroom?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The toilet in the bathroom is white."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Is there a painting hanging on the wall in the bathroom?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Yes, there is a painting hanging on the wall in the bathroom."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "What type of fixtures or counters are used in the bathroom?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Marble fixtures or counters are used in the bathroom."
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "In general, how is the bathroom decorated?"
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "The bathroom is well-decorated with artwork hanging on the wall and earth-toned tile and paint. The combination of a beige sink and vanity, white toilet, and marble counters or fixtures creates an elegant and inviting atmosphere in the bathroom. The presence of a painting on the wall adds a personal touch and contributes to the overall aesthetic of the space."
+                    }
+                ]
+            }
+        ]
+    }
+]
