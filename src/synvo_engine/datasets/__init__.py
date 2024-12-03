@@ -1,4 +1,5 @@
-from .base_dataset import BaseDataset
+from .config import DatasetConfig
 from .factory import DatasetFactory
+from .vision_dataset import VisionSFTDataset
 
-__all__ = ["DatasetFactory", "BaseDataset"]
+__all__ = ["DatasetFactory", "DatasetConfig", "VisionSFTDataset"]
