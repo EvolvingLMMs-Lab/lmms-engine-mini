@@ -45,6 +45,7 @@ exclude = [
 ]
 
 [project.scripts]
+synvo_launch="synvo_engine.launch.cli:main"
 
 
 [project.urls]
