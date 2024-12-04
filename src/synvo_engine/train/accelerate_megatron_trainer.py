@@ -14,14 +14,10 @@ from .config import TrainerConfig
 
 
 class AccelerateMegatronTrainer:
-    def __init__(self, config: dict) -> None:
-        self.train_dataset_config = DatasetConfig(**config["train_dataset_config"])
-        self.model_config = ModelConfig(**config["model_config"])
-        self.config = TrainerConfig(
-            config["trainer_type"],
-            dataset_config=self.dataset_config,
-            model_config=self.model_config,
-        )
+    def __init__(self, config: TrainerConfig) -> None:
+        self.train_dataset_config = config.dataset_config
+        self.model_config = config.model_config
+        self.config = config
 
     def build(self):
         self.model = self._build_model()
@@ -79,12 +75,7 @@ class AccelerateMegatronTrainer:
 
         self.accelerator.end_training()
         self.accelerator.wait_for_everyone()
-        unwrapped_model = self.accelerator.unwrap_model(self.model)
-        unwrapped_model.save_pretrained(
-            self.config.output_dir,
-            is_main_process=self.accelerator.is_main_process,
-            save_function=self.accelerator.save,
-        )
+        self.accelerator.save_state(self.config.output_dir)
         if self.accelerator.is_main_process:
             self.train_dataset.processor.save_pretrained(self.config.output_dir)
 

@@ -20,4 +20,4 @@ class TrainerConfig:
     report_to: Literal["wandb", "none"] = "wandb"
     output_dir: str = "./output"
     num_warmup_steps: int = 0
-    run_name: str
+    run_name: str = "default"
