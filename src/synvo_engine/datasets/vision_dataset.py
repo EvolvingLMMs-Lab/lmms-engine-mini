@@ -1,10 +1,13 @@
 import json
+from typing import Dict
 
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import AutoProcessor
 
 from ..utils.train import TrainUtilities
+from .collator import VisionCollator
 from .config import DatasetConfig
 
 
@@ -22,7 +25,7 @@ class VisionSFTDataset(Dataset):
     def build(self):
         self._build_from_config()
 
-    def load_from_json(self, data):
+    def load_from_json(self, data) -> Dict[str, torch.Tensor]:
         # TODO Write a protocol for vision openai input
         images_list = []
         messages = data["messages"]
@@ -32,9 +35,11 @@ class VisionSFTDataset(Dataset):
                     images_list.append(content["image_url"]["url"])
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
-        prompt = self.processor.apply_chat_template(hf_messages)
         images = [Image.open(image) for image in images_list]
-        inputs = self.processor(images=images, text=prompt, return_tensors="pt")
+        inputs = dict(
+            images=images,
+            prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
+        )
         return inputs
 
     def __getitem__(self, index):
@@ -44,3 +49,6 @@ class VisionSFTDataset(Dataset):
 
     def __len__(self):
         return len(self.data_list)
+
+    def get_collator(self):
+        return VisionCollator(self.processor)

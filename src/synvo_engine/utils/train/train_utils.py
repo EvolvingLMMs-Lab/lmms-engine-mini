@@ -1,3 +1,7 @@
+import torch
+from transformers import AutoProcessor
+
+
 class TrainUtilities:
     @staticmethod
     def prepare_model():
@@ -16,3 +20,17 @@ class TrainUtilities:
             hf_messages.append(new_message)
 
         return hf_messages
+
+    @staticmethod
+    def sanity_check_labels(
+        processor: AutoProcessor, input_ids: torch.Tensor, labels: torch.Tensor
+    ):
+        print(" ======== Inputs ========")
+        for o in processor.batch_decode(input_ids):
+            print(o)
+            break
+        print(" ======== Labels ========")
+        labels[labels == -100] = 0
+        for o in processor.batch_decode(labels):
+            print(o)
+            break

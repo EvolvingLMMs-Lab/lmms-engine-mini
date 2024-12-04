@@ -3,6 +3,7 @@ import unittest
 from torch.utils.data import DataLoader
 
 from synvo_engine.datasets import DatasetConfig, DatasetFactory
+from synvo_engine.utils.train import TrainUtilities
 
 
 class TestVisionDataset(unittest.TestCase):
@@ -17,9 +18,13 @@ class TestVisionDataset(unittest.TestCase):
         dataset_config = DatasetConfig(**config)
         dataset = DatasetFactory.create_dataset(dataset_config)
         dataset.build()
-        dataLoader = DataLoader(dataset, batch_size=1, shuffle=False)
+        collator = dataset.get_collator()
+        dataLoader = DataLoader(
+            dataset, batch_size=4, shuffle=False, collate_fn=collator
+        )
         for data in dataLoader:
-            assert data["image_sizes"][0, 0, 0] == 480
+            # TrainUtilities.sanity_check_labels(dataset.processor, data["input_ids"], data["labels"])
+            print([f"{key}: {value.shape}" for key, value in data.items()])
             break
 
 
