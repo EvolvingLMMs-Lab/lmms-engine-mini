@@ -46,7 +46,7 @@ class AccelerateMegatronTrainer:
         )
         return accelerator
 
-    def run(self):
+    def run(self, **kwargs):
         self.train_dataloader = self.get_train_dataloader()
         self.optimizer = self.get_optimizer()
         num_train_step = self.get_train_step()
@@ -224,4 +224,5 @@ class AccelerateMegatronTrainer:
 
     def init_trackers(self):
         experiment_config = self.config.__dict__
-        self.accelerator.init_trackers("clm_no_trainer", experiment_config)
+        experiment_config.pop("run_name")
+        self.accelerator.init_trackers(self.config.run_name, experiment_config)
