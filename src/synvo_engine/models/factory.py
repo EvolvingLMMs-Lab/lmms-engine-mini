@@ -24,8 +24,9 @@ class ModelFactory:
     def create_model(model_name, **kwargs):
         if model_name not in MODEL_REGISTRY:
             try:
-                cls = importlib.import_module("transformers", model_name)
+                transformers_module = importlib.import_module("transformers")
+                cls = getattr(transformers_module, model_name)
                 MODEL_REGISTRY[model_name] = cls
             except:
                 raise ValueError(f"Model '{model_name}' not found!")
-        return MODEL_REGISTRY[model_name](**kwargs)
+        return MODEL_REGISTRY[model_name]
