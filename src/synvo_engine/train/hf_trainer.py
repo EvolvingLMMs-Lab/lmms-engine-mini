@@ -3,6 +3,7 @@ from transformers import Trainer
 
 from .base_trainer import BaseTrainer
 from .config import TrainerConfig
+from .custom import LLaVATrainer
 
 
 class Hf_Trainer(BaseTrainer):
@@ -14,7 +15,7 @@ class Hf_Trainer(BaseTrainer):
         self.trainer = self._build_trainer()
 
     def _build_trainer(self):
-        trainer = Trainer(
+        trainer = LLaVATrainer(
             model=self.model,
             args=self.config.trainer_args,
             data_collator=self.train_dataset.get_collator(),
@@ -25,7 +26,9 @@ class Hf_Trainer(BaseTrainer):
     def run(self, **kwargs):
         self.trainer.train()
         self.trainer.save_state()
-        self.safe_save_model_for_hf_trainer(self.trainer, self.config.output_dir)
+        self.safe_save_model_for_hf_trainer(
+            self.trainer, self.config.trainer_args.output_dir
+        )
 
     def safe_save_model_for_hf_trainer(self, trainer: Trainer, output_dir: str):
         """Collects the state dict and dump to disk."""
