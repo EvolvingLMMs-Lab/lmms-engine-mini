@@ -1,7 +1,12 @@
+from typing import Optional
+
+import datasets
 import torch
 from torch.utils.data import DataLoader
 from transformers import Trainer
-from transformers.trainer_utils import seed_worker
+from transformers.trainer_pt_utils import LengthGroupedSampler, RandomSampler
+from transformers.trainer_utils import has_length, seed_worker
+from transformers.utils import is_datasets_available
 
 
 class LLaVATrainer(Trainer):
@@ -42,3 +47,34 @@ class LLaVATrainer(Trainer):
         )
 
         return dataloader
+
+    def _get_train_sampler(self):
+        if self.train_dataset is None or not has_length(self.train_dataset):
+            return None
+
+        # Build the sampler.
+        if self.args.group_by_length:
+            if is_datasets_available() and isinstance(
+                self.train_dataset, datasets.Dataset
+            ):
+                lengths = (
+                    self.train_dataset[self.args.length_column_name]
+                    if self.args.length_column_name in self.train_dataset.column_names
+                    else None
+                )
+            else:
+                lengths = None
+            model_input_name = (
+                self.processing_class.model_input_names[0]
+                if self.processing_class is not None
+                else None
+            )
+            return LengthGroupedSampler(
+                self.args.train_batch_size * self.args.gradient_accumulation_steps,
+                dataset=self.train_dataset,
+                lengths=self.train_dataset.modality_length,
+                model_input_name=model_input_name,
+            )
+
+        else:
+            return RandomSampler(self.train_dataset)

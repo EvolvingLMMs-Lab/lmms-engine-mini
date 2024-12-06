@@ -36,6 +36,7 @@ class VisionSFTDataset(Dataset):
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
         images = [Image.open(image) for image in images_list]
+        prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
         inputs = dict(
             images=images,
             prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
@@ -52,3 +53,16 @@ class VisionSFTDataset(Dataset):
 
     def get_collator(self):
         return VisionCollator(self.processor)
+
+    @property
+    def modality_length(self):
+        length = []
+        if self.config.dataset_format == "json":
+            for data in self.data_list:
+                mm_data_num = 0
+                for message in data["messages"]:
+                    for content in message["content"]:
+                        if content["type"] == "image_url":
+                            mm_data_num += 1
+                length.append(mm_data_num)
+        return length
