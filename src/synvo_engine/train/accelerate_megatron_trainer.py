@@ -10,27 +10,14 @@ from tqdm import tqdm
 
 from ..datasets import DatasetConfig, DatasetFactory
 from ..models import ModelConfig, ModelFactory
+from .base_trainer import BaseTrainer
 from .config import TrainerConfig
 
 
-class AccelerateMegatronTrainer:
-    def __init__(self, config: TrainerConfig) -> None:
-        self.train_dataset_config = config.dataset_config
-        self.model_config = config.model_config
-        self.config = config
-
+class AccelerateMegatronTrainer(BaseTrainer):
     def build(self):
-        self.model = self._build_model()
-        self.train_dataset = self._build_train_dataset()
+        super().build()
         self.accelerator = self._build_accelerator()
-
-    def _build_model(self):
-        model_class = ModelFactory.create_model(self.model_config.model_class)
-        model = model_class.from_pretrained(self.model_config.model_name_or_path)
-        return model
-
-    def _build_train_dataset(self):
-        return DatasetFactory.create_dataset(self.train_dataset_config)
 
     def _build_accelerator(self):
         accelerator_log_kwargs = {}

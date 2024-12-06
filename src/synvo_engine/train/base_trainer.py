@@ -1,0 +1,32 @@
+from abc import ABC, abstractmethod
+
+from ..datasets import DatasetFactory
+from ..models import ModelFactory
+from .config import TrainerConfig
+
+
+class BaseTrainer(ABC):
+    """
+    This is a base trainer wrapper to wrap all other trainer or your training logic
+    """
+
+    def __init__(self, config: TrainerConfig) -> None:
+        self.train_dataset_config = config.dataset_config
+        self.model_config = config.model_config
+        self.config = config
+
+    def build(self):
+        self.model = self._build_model()
+        self.train_dataset = self._build_train_dataset()
+
+    def _build_model(self):
+        model_class = ModelFactory.create_model(self.model_config.model_class)
+        model = model_class.from_pretrained(self.model_config.model_name_or_path)
+        return model
+
+    def _build_train_dataset(self):
+        return DatasetFactory.create_dataset(self.train_dataset_config)
+
+    @abstractmethod
+    def run(self, **kwargs):
+        pass
