@@ -7,7 +7,9 @@ from ..datasets import DatasetConfig
 from ..models import ModelConfig
 
 
-class TrainerConfig(TrainingArguments):
-    trainer_type: Literal["accelerate_megatron"]
+@dataclass
+class TrainerConfig:
+    trainer_type: Literal["accelerate_megatron", "hf_trainer"]
     dataset_config: DatasetConfig
     model_config: ModelConfig
+    trainer_args: TrainingArguments

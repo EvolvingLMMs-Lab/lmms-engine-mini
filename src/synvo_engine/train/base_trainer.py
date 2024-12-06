@@ -25,7 +25,9 @@ class BaseTrainer(ABC):
         return model
 
     def _build_train_dataset(self):
-        return DatasetFactory.create_dataset(self.train_dataset_config)
+        dataset = DatasetFactory.create_dataset(self.train_dataset_config)
+        dataset.build()
+        return dataset
 
     @abstractmethod
     def run(self, **kwargs):

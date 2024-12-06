@@ -1,5 +1,9 @@
 from typing import List
 
+from transformers import TrainingArguments
+
+from ..datasets import DatasetConfig
+from ..models import ModelConfig
 from ..protocol import Runnable
 from ..train import TrainerConfig, TrainerFactory
 
@@ -23,10 +27,22 @@ class Pipeline:
             self.build()
 
         for component in self.components:
+            component.build()
             component.run()
 
     def _build_trainer(self, config: dict):
-        train_config = TrainerConfig(**config)
+        dataset_config = config.pop("dataset_config")
+        dataset_config = DatasetConfig(**dataset_config)
+        model_config = config.pop("model_config")
+        model_config = ModelConfig(**model_config)
+        trainer_type = config.pop("trainer_type")
+        trainer_args = TrainingArguments(**config)
+        train_config = TrainerConfig(
+            dataset_config=dataset_config,
+            model_config=model_config,
+            trainer_type=trainer_type,
+            trainer_args=trainer_args,
+        )
         trainer = TrainerFactory.create_trainer(train_config)
         return trainer
 
