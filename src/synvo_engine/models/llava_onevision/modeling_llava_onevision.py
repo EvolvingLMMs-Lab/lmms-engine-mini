@@ -907,7 +907,7 @@ class LlavaOnevisionForConditionalGeneration(
 
     def calc_gpt_flops(self, attention_mask):
         tokens_count = torch.sum(attention_mask != 0).item()
-        flops = self.flops_per_token * tokens_count
+        flops = self.flops_per_token() * tokens_count
         token_count_list = torch.sum(attention_mask != 0, dim=1).tolist()
         for seq_len in token_count_list:
             flops += (
