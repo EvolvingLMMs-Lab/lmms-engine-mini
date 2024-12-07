@@ -27,6 +27,7 @@ dependencies = [
     "accelerate",
     "pillow",
     "peft",
+    "deepspeed",
 ]
 
 [project.optional-dependencies]
