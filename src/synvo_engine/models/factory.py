@@ -1,22 +1,10 @@
 import importlib
 
-MODEL_REGISTRY = {}
+from .llava_onevision.modeling_llava_onevision import (
+    LlavaOnevisionForConditionalGeneration,
+)
 
-
-def register_model(*names):
-    # either pass a list or a single alias.
-    # function receives them as a tuple of strings
-
-    def decorate(cls):
-        for name in names:
-            assert (
-                name not in MODEL_REGISTRY
-            ), f"Model named '{name}' conflicts with existing model! Please register with a non-conflicting alias instead."
-
-            MODEL_REGISTRY[name] = cls
-        return cls
-
-    return decorate
+MODEL_REGISTRY = {"llava_onevision": LlavaOnevisionForConditionalGeneration}
 
 
 class ModelFactory:
