@@ -30,6 +30,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.models.auto import AutoModel, AutoModelForCausalLM
 from transformers.utils import add_start_docstrings, logging
 
+from ..modeling_qwen import Qwen2ForCausalLM
 from .configuration_llava_onevision import LlavaOnevisionConfig
 
 logger = logging.get_logger(__name__)
@@ -379,7 +380,10 @@ class LlavaOnevisionForConditionalGeneration(
         )
 
         self.vocab_size = config.text_config.vocab_size
-        self.language_model = AutoModelForCausalLM.from_config(config.text_config)
+        if self.config.use_rmpad:
+            self.language_model = Qwen2ForCausalLM(config.text_config)
+        else:
+            self.language_model = AutoModelForCausalLM.from_config(config.text_config)
         self.post_init()
 
     # Copied from transformers.models.llava_next.modeling_llava_next.LlavaNextForConditionalGeneration.get_input_embeddings
@@ -679,6 +683,7 @@ class LlavaOnevisionForConditionalGeneration(
         >>> processor.batch_decode(output, skip_special_tokens=True)[0]
         "user\n\nWhat is shown in this image?\nassistant\ncat"
         ```"""
+        use_rmpad = self.config.use_rmpad
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -793,49 +798,70 @@ class LlavaOnevisionForConditionalGeneration(
             )
 
         flops = self.calc_gpt_flops(attention_mask)
-        outputs = self.language_model(
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-            cache_position=cache_position,
-            num_logits_to_keep=num_logits_to_keep,
-        )
-
-        logits = outputs[0]
-
-        loss = None
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            if attention_mask is not None:
-                # we use the input attention mask to shift the logits and labels, because it is 2D.
-                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
-                shift_attention_mask = attention_mask[:, -(logits.shape[1] - 1) :].to(
-                    logits.device
-                )
-                shift_logits = logits[..., :-1, :][
-                    shift_attention_mask.to(logits.device) != 0
-                ].contiguous()
-                shift_labels = labels[..., 1:][
-                    shift_attention_mask.to(labels.device) != 0
-                ].contiguous()
-            else:
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(
-                shift_logits.view(-1, shift_logits.size(-1)),
-                shift_labels.view(-1).to(shift_logits.device),
+        if use_rmpad:
+            outputs = self.language_model(
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                use_rmpad=use_rmpad,
+                labels=labels,
+            )
+        else:
+            outputs = self.language_model(
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_values=past_key_values,
+                inputs_embeds=inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+                cache_position=cache_position,
+                num_logits_to_keep=num_logits_to_keep,
             )
 
+        if use_rmpad:
+            loss = outputs.loss
+            logits = outputs.logits
+        else:
+            logits = outputs[0]
+            loss = None
+            if labels is not None:
+                # Shift so that tokens < n predict n
+                if attention_mask is not None:
+                    # we use the input attention mask to shift the logits and labels, because it is 2D.
+                    # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
+                    shift_attention_mask = attention_mask[
+                        :, -(logits.shape[1] - 1) :
+                    ].to(logits.device)
+                    shift_logits = logits[..., :-1, :][
+                        shift_attention_mask.to(logits.device) != 0
+                    ].contiguous()
+                    shift_labels = labels[..., 1:][
+                        shift_attention_mask.to(labels.device) != 0
+                    ].contiguous()
+                else:
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    shift_labels = labels[..., 1:].contiguous()
+                # Flatten the tokens
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(
+                    shift_logits.view(-1, shift_logits.size(-1)),
+                    shift_labels.view(-1).to(shift_logits.device),
+                )
+
         if not return_dict:
-            output = (logits,) + outputs[1:]
-            return (loss,) + output if loss is not None else output
+            if not use_rmpad:
+                output = (logits,) + outputs[1:]
+                return (loss,) + output if loss is not None else output
+            else:
+                # If use rmpad, logits and loss already in outputs
+                return output
 
         return LlavaOnevisionCausalLMOutputWithPast(
             loss=loss,

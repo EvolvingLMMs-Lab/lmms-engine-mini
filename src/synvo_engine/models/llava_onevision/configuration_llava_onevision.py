@@ -92,6 +92,7 @@ class LlavaOnevisionConfig(PretrainedConfig):
         vision_aspect_ratio="anyres_max_9",
         image_grid_pinpoints=None,
         tie_word_embeddings=False,
+        use_rmpad=False,
         **kwargs,
     ):
         self.image_token_index = image_token_index
@@ -170,6 +171,7 @@ class LlavaOnevisionConfig(PretrainedConfig):
             )
 
         self.vision_config = vision_config
+        self.use_rmpad = use_rmpad
 
         if isinstance(text_config, dict):
             text_config["model_type"] = (

@@ -1525,7 +1525,18 @@ class Qwen2Model(Qwen2PreTrainedModel):
                     )
             else:
                 if use_rmpad:
-                    layer_outputs = create_custom_forward(decoder_layer)
+                    layer_outputs = decoder_layer(
+                        hidden_states,
+                        attention_mask,
+                        position_ids,
+                        None,
+                        output_attentions,
+                        indices=indices,
+                        cu_seq_lens=cu_seq_lens,
+                        use_rmpad=use_rmpad,
+                        sp_pad_size=sp_pad_size,
+                        use_cache=use_cache,
+                    )
                 else:
                     layer_outputs = decoder_layer(
                         hidden_states,
@@ -1554,7 +1565,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
         if use_cache:
             next_cache = (
                 next_decoder_cache.to_legacy_cache()
-                if use_legacy_cache
+                if use_legacy_cache and next_decoder_cache is not None
                 else next_decoder_cache
             )
 
