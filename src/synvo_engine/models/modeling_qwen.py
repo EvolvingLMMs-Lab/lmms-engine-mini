@@ -50,8 +50,8 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from .attention import Attention as SequenceParallelAttention
-from .kernels.cross_entropy_loss import fast_cross_entropy_loss
+from .kernels import Attention as SequenceParallelAttention
+from .kernels import fast_cross_entropy_loss
 
 faster_llama_rmsnorm = None
 if is_flash_attn_2_available():
