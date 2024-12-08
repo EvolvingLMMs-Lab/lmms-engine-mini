@@ -1366,8 +1366,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
             if output_hidden_states is not None
             else self.config.output_hidden_states
         )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-        use_rmpad = use_rmpad if use_rmpad is not None else self.config.use_rmpad
+        # use_cache = use_cache if use_cache is not None else self.config.use_cache
+        # use_rmpad = use_rmpad if use_rmpad is not None else self.config.use_rmpad
 
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
