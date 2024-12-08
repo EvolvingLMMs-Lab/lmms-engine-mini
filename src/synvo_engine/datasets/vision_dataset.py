@@ -2,6 +2,7 @@ import json
 from typing import Dict
 
 import torch
+from datasets import load_dataset
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import AutoProcessor
@@ -21,6 +22,8 @@ class VisionSFTDataset(Dataset):
         if self.config.dataset_format == "json":
             with open(self.config.dataset_path, "r") as f:
                 self.data_list = json.load(f)
+        elif self.config.dataset_format == "hf_dataset":
+            self.data_list = load_dataset(self.config.dataset_path, split="train")
 
     def build(self):
         self._build_from_config()
@@ -45,9 +48,29 @@ class VisionSFTDataset(Dataset):
         inputs["labels"] = labels
         return inputs
 
+    def load_from_hf(self, data) -> Dict[str, torch.Tensor]:
+        messages = data["messages"]
+        hf_messages = TrainUtilities.convert_open_to_hf(messages)
+        if isinstance(data["image"], list):
+            images = data["image"]
+        else:
+            images = [data["image"]]
+        prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
+        inputs = dict(
+            images=images,
+            prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
+        )
+        labels = self.get_labels(hf_messages)["labels"]
+        inputs["labels"] = labels
+        return inputs
+
     def __getitem__(self, index):
         if self.config.dataset_format == "json":
             data_dict = self.load_from_json(self.data_list[index])
+        elif self.config.dataset_format == "hf_dataset":
+            data_dict = self.load_from_hf(self.data_list[index])
+        else:
+            raise NotImplementedError
         return data_dict
 
     def __len__(self):
@@ -55,14 +78,6 @@ class VisionSFTDataset(Dataset):
 
     def get_collator(self):
         return VisionCollator(self.processor)
-
-    def get_image_list(self, messages):
-        images_list = []
-        for message in messages:
-            for content in message["content"]:
-                if content["type"] == "image_url":
-                    images_list.append(content["image_url"]["url"])
-        return images_list
 
     def get_labels(self, hf_messages):
         if self.config.chat_template == "qwen":
@@ -82,4 +97,14 @@ class VisionSFTDataset(Dataset):
                         if content["type"] == "image_url":
                             mm_data_num += 1
                 length.append(mm_data_num)
+        elif self.config.dataset_format == "hf_dataset":
+            for data in self.data_list:
+                mm_data_num = 0
+                if isinstance(data["image"], list):
+                    mm_data_num = len(data["image"])
+                else:
+                    mm_data_num = 1
+                length.append(mm_data_num)
+        else:
+            raise NotImplementedError
         return length
