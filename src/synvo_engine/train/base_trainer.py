@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from loguru import logger
+
 from ..datasets import DatasetFactory
 from ..models import ModelFactory
 from .config import TrainerConfig
@@ -25,6 +27,9 @@ class BaseTrainer(ABC):
             self.model_config.model_name_or_path,
             attn_implementation=self.model_config.attn_implementation,
         )
+        for key, value in self.model_config.overwrite_config.items():
+            setattr(model.config, key, value)
+            logger.info(f"Overwrite {key} to {value}")
         return model
 
     def _build_train_dataset(self):

@@ -30,6 +30,7 @@ dependencies = [
     "deepspeed",
     "bitsandbytes",
     "triton",
+    "loguru",
 ]
 
 [project.optional-dependencies]
