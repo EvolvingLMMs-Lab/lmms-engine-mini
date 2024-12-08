@@ -4,6 +4,8 @@ from typing import Dict, Sequence
 import torch
 from transformers import AutoProcessor
 
+from ...utils.train import TrainUtilities
+
 
 @dataclass
 class VisionCollator:
@@ -22,15 +24,30 @@ class VisionCollator:
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         prompt = []
         images = []
+        labels = []
         for instance in instances:
             prompt.append(instance["prompt"])
             images.append(instance["images"])
+            labels.append(instance["labels"])
+
+        # labels = torch.concatenate(labels, dim=0)
 
         inputs = self.processor(
             text=prompt, images=images, return_tensors="pt", do_pad=True, padding=True
         )
-        labels = inputs["input_ids"].clone()
-        labels[labels == self.image_token_id] = -100
+
+        # labels = inputs["input_ids"].clone()
+        # labels[labels == self.image_token_id] = -100
+        labels = TrainUtilities._expand_image_tokens_labels(
+            input_ids=inputs["input_ids"],
+            labels=labels,
+            image_sizes=iter(inputs["image_sizes"]),
+            height=inputs["pixel_values"].shape[-2],
+            width=inputs["pixel_values"].shape[-1],
+            special_token_idx=self.image_token_id,
+            num_frames=1,
+            processor=self.processor,
+        )
         inputs["labels"] = labels
 
         return inputs

@@ -1,3 +1,5 @@
+from typing import Iterable, List, Union
+
 import torch
 from transformers import AutoProcessor
 
@@ -59,3 +61,93 @@ class TrainUtilities:
             flops = 354e12
         flops_unit = unit_convert(flops, unit)
         return flops_unit
+
+    @staticmethod
+    def get_qwen_template_labels(hf_messages, processor: AutoProcessor):
+        image_token_index = processor.tokenizer.convert_tokens_to_ids(
+            processor.image_token
+        )
+        im_start, im_end = processor.tokenizer.additional_special_tokens_ids
+        # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
+        unmask_tokens_idx = [198, im_start, im_end]
+        input_id, target = [], []
+        for message in hf_messages:
+            role = message["role"]
+            encode_id = processor.apply_chat_template([message], tokenize=True)
+            input_id += encode_id
+            if role in ["user", "system"]:
+                target += [-100] * len(encode_id)
+            else:
+                target += encode_id
+
+        assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
+        for idx, encode_id in enumerate(input_id):
+            if encode_id in unmask_tokens_idx:
+                target[idx] = encode_id
+            if encode_id == image_token_index:
+                # Revert image so that we recognize it in labels
+                # Unmask later
+                target[idx] = image_token_index
+
+        input_id = torch.tensor(input_id, dtype=torch.long)
+        target = torch.tensor(target, dtype=torch.long)
+
+        return dict(
+            input_ids=input_id,
+            labels=target,
+        )
+
+    @staticmethod
+    def _expand_image_tokens_labels(
+        input_ids: torch.tensor,  # [bs x seq_len] with padding
+        labels: List[torch.tensor],
+        image_sizes: Iterable[Union[List[int], int]],
+        height: int,
+        width: int,
+        special_token_idx: int,
+        num_frames: int = 1,
+        processor: AutoProcessor = None,
+    ):
+        new_labels = torch.zeros_like(input_ids)
+        new_labels -= 100
+        for batch_idx, label in enumerate(labels):
+            special_token_pos = [
+                idx for idx, la in enumerate(label.tolist()) if la == special_token_idx
+            ]
+            prev = 0
+            for idx, pos in enumerate(special_token_pos):
+                image_size_list = next(image_sizes)
+                original_size = (
+                    image_size_list[0] if num_frames != 1 else image_size_list
+                )
+                if not isinstance(original_size, (list, tuple)):
+                    # cast to list to avoid numerical precision errors when calculating unpadding
+                    original_size = original_size.tolist()
+                orig_height, orig_width = original_size
+                num_image_tokens = processor._get_number_of_features(
+                    orig_height, orig_width, height, width
+                )
+                if processor.vision_feature_select_strategy == "default":
+                    num_image_tokens -= 1
+
+                # Before image token, original labels
+                new_labels[batch_idx, prev:pos] = label[prev:pos]
+                # Expand image token
+                new_labels[batch_idx, pos : pos + num_image_tokens] = -100
+
+                if idx == len(special_token_pos) - 1:
+                    # After last image token, original labels
+                    last_label_shape = label[pos + 1 :].shape[0]
+                    # The rest are just padding
+                    new_labels[
+                        batch_idx,
+                        pos
+                        + num_image_tokens : pos
+                        + num_image_tokens
+                        + last_label_shape,
+                    ] = label[pos + 1 :]
+
+                # Next interval will be from this image token + 1
+                prev = pos + 1
+
+        return new_labels

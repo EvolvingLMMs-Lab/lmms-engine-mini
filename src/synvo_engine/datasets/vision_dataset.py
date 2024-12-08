@@ -41,6 +41,8 @@ class VisionSFTDataset(Dataset):
             images=images,
             prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
         )
+        labels = self.get_labels(hf_messages)["labels"]
+        inputs["labels"] = labels
         return inputs
 
     def __getitem__(self, index):
@@ -53,6 +55,21 @@ class VisionSFTDataset(Dataset):
 
     def get_collator(self):
         return VisionCollator(self.processor)
+
+    def get_image_list(self, messages):
+        images_list = []
+        for message in messages:
+            for content in message["content"]:
+                if content["type"] == "image_url":
+                    images_list.append(content["image_url"]["url"])
+        return images_list
+
+    def get_labels(self, hf_messages):
+        if self.config.chat_template == "qwen":
+            labels = TrainUtilities.get_qwen_template_labels(
+                hf_messages, self.processor
+            )
+        return labels
 
     @property
     def modality_length(self):

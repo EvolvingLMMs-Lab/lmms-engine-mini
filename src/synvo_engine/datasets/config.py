@@ -8,3 +8,4 @@ class DatasetConfig:
     dataset_format: Literal["json", "hf_dataset"]
     dataset_path: str
     processor_name: str
+    chat_template: Literal["qwen"] = "qwen"

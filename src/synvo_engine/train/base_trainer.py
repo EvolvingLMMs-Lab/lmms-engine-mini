@@ -21,7 +21,10 @@ class BaseTrainer(ABC):
 
     def _build_model(self):
         model_class = ModelFactory.create_model(self.model_config.model_class)
-        model = model_class.from_pretrained(self.model_config.model_name_or_path)
+        model = model_class.from_pretrained(
+            self.model_config.model_name_or_path,
+            attn_implementation=self.model_config.attn_implementation,
+        )
         return model
 
     def _build_train_dataset(self):

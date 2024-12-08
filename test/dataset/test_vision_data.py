@@ -13,6 +13,7 @@ class TestVisionDataset(unittest.TestCase):
             "dataset_format": "json",
             "dataset_path": "./examples/sample_json_data/synvo_engine.json",
             "processor_name": "llava-hf/llava-onevision-qwen2-0.5b-ov-hf",
+            "chat_template": "qwen",
         }
 
         dataset_config = DatasetConfig(**config)
