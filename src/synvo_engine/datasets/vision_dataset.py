@@ -42,7 +42,7 @@ class VisionSFTDataset(Dataset):
         prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
         inputs = dict(
             images=images,
-            prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
+            prompt=prompt,
         )
         labels = self.get_labels(hf_messages)["labels"]
         inputs["labels"] = labels
@@ -58,7 +58,7 @@ class VisionSFTDataset(Dataset):
         prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
         inputs = dict(
             images=images,
-            prompt=self.processor.apply_chat_template(hf_messages, tokenize=False),
+            prompt=prompt,
         )
         labels = self.get_labels(hf_messages)["labels"]
         inputs["labels"] = labels
