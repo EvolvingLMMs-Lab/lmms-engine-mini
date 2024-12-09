@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import torch
 from loguru import logger
 
 from ..datasets import DatasetFactory
@@ -26,6 +27,7 @@ class BaseTrainer(ABC):
         model = model_class.from_pretrained(
             self.model_config.model_name_or_path,
             attn_implementation=self.model_config.attn_implementation,
+            torch_dtype=(torch.bfloat16 if self.config.trainer_args.bf16 else None),
         )
         for key, value in self.model_config.overwrite_config.items():
             setattr(model.config, key, value)
