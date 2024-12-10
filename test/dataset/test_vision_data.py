@@ -12,8 +12,12 @@ class TestVisionDataset(unittest.TestCase):
             "dataset_type": "vision",
             "dataset_format": "json",
             "dataset_path": "./examples/sample_json_data/synvo_engine.json",
-            "processor_name": "llava-hf/llava-onevision-qwen2-0.5b-ov-hf",
             "chat_template": "qwen",
+            "processor_config": {
+                "processor_name": "Qwen/Qwen2-VL-7B-Instruct",
+                "processor_modality": "vision",
+                "processor_type": "qwen2_vl",
+            },
         }
 
         dataset_config = DatasetConfig(**config)
@@ -24,7 +28,7 @@ class TestVisionDataset(unittest.TestCase):
             dataset, batch_size=4, shuffle=False, collate_fn=collator
         )
         for data in dataLoader:
-            # TrainUtilities.sanity_check_labels(dataset.processor, data["input_ids"], data["labels"])
+            # TrainUtilities.sanity_check_labels(dataset.processor.processor, data["input_ids"], data["labels"])
             print([f"{key}: {value.shape}" for key, value in data.items()])
             break
 
@@ -33,8 +37,12 @@ class TestVisionDataset(unittest.TestCase):
             "dataset_type": "vision",
             "dataset_format": "hf_dataset",
             "dataset_path": "kcz358/LLaVA-NeXT-20k",
-            "processor_name": "llava-hf/llava-onevision-qwen2-0.5b-ov-hf",
             "chat_template": "qwen",
+            "processor_config": {
+                "processor_name": "Qwen/Qwen2-VL-7B-Instruct",
+                "processor_modality": "vision",
+                "processor_type": "qwen2_vl",
+            },
         }
 
         dataset_config = DatasetConfig(**config)
@@ -45,7 +53,7 @@ class TestVisionDataset(unittest.TestCase):
             dataset, batch_size=4, shuffle=False, collate_fn=collator
         )
         for data in dataLoader:
-            # TrainUtilities.sanity_check_labels(dataset.processor, data["input_ids"], data["labels"])
+            # TrainUtilities.sanity_check_labels(dataset.processor.processor, data["input_ids"], data["labels"])
             print([f"{key}: {value.shape}" for key, value in data.items()])
             break
 

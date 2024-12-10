@@ -1,15 +1,17 @@
+import collections
 from dataclasses import dataclass
 from typing import Dict, Sequence
 
+import numpy as np
 import torch
-from transformers import AutoProcessor
 
+from ...protocol import Processable
 from ...utils.train import TrainUtilities
 
 
 @dataclass
 class VisionCollator:
-    processor: AutoProcessor
+    processor: Processable
 
     def pad_sequence(self, input_ids, batch_first, padding_value):
         if self.processor.tokenizer.padding_side == "left":
@@ -22,35 +24,32 @@ class VisionCollator:
         return input_ids
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        prompt = []
-        images = []
-        labels = []
+        inputs = collections.defaultdict(list)
         for instance in instances:
-            prompt.append(instance["prompt"])
-            images.append(instance["images"])
-            labels.append(instance["labels"])
+            for key, values in instance.items():
+                inputs[key].append(values)
 
-        # labels = torch.concatenate(labels, dim=0)
-
-        inputs = self.processor(
-            text=prompt, images=images, return_tensors="pt", do_pad=True, padding=True
+        input_ids = inputs.pop("input_ids")
+        labels = inputs.pop("labels")
+        input_ids = self.pad_sequence(
+            input_ids,
+            batch_first=True,
+            padding_value=self.processor.tokenizer.pad_token_id,
         )
-
-        # labels = inputs["input_ids"].clone()
-        # labels[labels == self.image_token_id] = -100
-        labels = TrainUtilities._expand_image_tokens_labels(
-            input_ids=inputs["input_ids"],
-            labels=labels,
-            image_sizes=iter(inputs["image_sizes"]),
-            height=inputs["pixel_values"].shape[-2],
-            width=inputs["pixel_values"].shape[-1],
-            special_token_idx=self.image_token_id,
-            num_frames=1,
-            processor=self.processor,
+        labels = self.pad_sequence(
+            labels,
+            batch_first=True,
+            padding_value=self.processor.tokenizer.pad_token_id,
         )
-        inputs["labels"] = labels
+        attention_mask = input_ids.ne(self.processor.tokenizer.pad_token_id)
+        batched_inputs = {}
+        for key, values in inputs.items():
+            batched_inputs[key] = torch.concatenate(values, dim=0)
+        batched_inputs["input_ids"] = input_ids
+        batched_inputs["labels"] = labels
+        batched_inputs["attention_mask"] = attention_mask
 
-        return inputs
+        return batched_inputs
 
     @property
     def image_token_id(self):

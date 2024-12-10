@@ -29,9 +29,10 @@ class BaseTrainer(ABC):
             attn_implementation=self.model_config.attn_implementation,
             torch_dtype=(torch.bfloat16 if self.config.trainer_args.bf16 else None),
         )
-        for key, value in self.model_config.overwrite_config.items():
-            setattr(model.config, key, value)
-            logger.info(f"Overwrite {key} to {value}")
+        if self.model_config.overwrite_config:
+            for key, value in self.model_config.overwrite_config.items():
+                setattr(model.config, key, value)
+                logger.info(f"Overwrite {key} to {value}")
         return model
 
     def _build_train_dataset(self):

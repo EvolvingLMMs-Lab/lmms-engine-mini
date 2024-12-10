@@ -6,6 +6,7 @@ import torch
 from datasets import Dataset as HFDataset
 from datasets import Image as HFImageFeature
 from datasets import Sequence, load_dataset
+from loguru import logger
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import AutoProcessor
@@ -13,15 +14,18 @@ from transformers import AutoProcessor
 from ..utils.train import TrainUtilities
 from .collator import VisionCollator
 from .config import DatasetConfig
+from .processor import ProcessorConfig, ProcessorFactory
 
 
 class VisionSFTDataset(Dataset):
     def __init__(self, config: DatasetConfig) -> None:
         super().__init__()
         self.config = config
+        self.processor_config = config.processor_config
+        if isinstance(self.processor_config, dict):
+            self.processor_config = ProcessorConfig(**self.processor_config)
 
     def _build_from_config(self):
-        self.processor = AutoProcessor.from_pretrained(self.config.processor_name)
         if self.config.dataset_format == "json":
             with open(self.config.dataset_path, "r") as f:
                 self.data_list = json.load(f)
@@ -32,8 +36,18 @@ class VisionSFTDataset(Dataset):
         else:
             raise NotImplementedError
 
+    def _build_processor(self):
+        processor = ProcessorFactory.create_processor(self.processor_config)
+        if self.processor_config.overwrite_config:
+            for key, value in self.processor_config.overwrite_config.items():
+                setattr(processor, key, value)
+                logger.info(f"Overwrite processor {key} to {value}")
+        return processor
+
     def build(self):
         self._build_from_config()
+        self.processor = self._build_processor()
+        self.processor.build()
 
     def load_from_json(self, data) -> Dict[str, torch.Tensor]:
         # TODO Write a protocol for vision openai input
@@ -46,13 +60,7 @@ class VisionSFTDataset(Dataset):
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
         images = [Image.open(image) for image in images_list]
-        prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
-        inputs = dict(
-            images=images,
-            prompt=prompt,
-        )
-        labels = self.get_labels(hf_messages)["labels"]
-        inputs["labels"] = labels
+        inputs = self.processor.process(images=images, hf_messages=hf_messages)
         return inputs
 
     def load_from_hf(self, data) -> Dict[str, torch.Tensor]:
@@ -62,13 +70,7 @@ class VisionSFTDataset(Dataset):
             images = data["image"]
         else:
             images = [data["image"]]
-        prompt = self.processor.apply_chat_template(hf_messages, tokenize=False)
-        inputs = dict(
-            images=images,
-            prompt=prompt,
-        )
-        labels = self.get_labels(hf_messages)["labels"]
-        inputs["labels"] = labels
+        inputs = self.processor.process(images=images, hf_messages=hf_messages)
         return inputs
 
     def __getitem__(self, index):
@@ -85,13 +87,6 @@ class VisionSFTDataset(Dataset):
 
     def get_collator(self):
         return VisionCollator(self.processor)
-
-    def get_labels(self, hf_messages):
-        if self.config.chat_template == "qwen":
-            labels = TrainUtilities.get_qwen_template_labels(
-                hf_messages, self.processor
-            )
-        return labels
 
     @property
     def modality_length(self):

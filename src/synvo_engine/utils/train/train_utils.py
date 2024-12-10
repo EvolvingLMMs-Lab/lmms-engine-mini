@@ -18,7 +18,9 @@ class TrainUtilities:
                 if content["type"] == "image_url":
                     new_message["content"].append({"type": "image"})
                 else:
-                    new_message["content"].append(content)
+                    new_message["content"].append(
+                        {"type": "text", "text": content["text"]}
+                    )
             hf_messages.append(new_message)
 
         return hf_messages
@@ -67,9 +69,10 @@ class TrainUtilities:
         image_token_index = processor.tokenizer.convert_tokens_to_ids(
             processor.image_token
         )
-        im_start, im_end = processor.tokenizer.additional_special_tokens_ids
-        # unmask_tokens = ["<|im_start|>", "<|im_start|>", "\n"]
-        unmask_tokens_idx = [198, im_start, im_end]
+        special_tokens = processor.tokenizer.additional_special_tokens
+        unmask_tokens_idx = [
+            processor.tokenizer.convert_tokens_to_ids(t) for t in special_tokens
+        ]
         input_id, target = [], []
         for message in hf_messages:
             role = message["role"]

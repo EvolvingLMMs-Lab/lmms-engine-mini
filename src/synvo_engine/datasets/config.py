@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Union
+
+from .processor import ProcessorConfig
 
 
 @dataclass
@@ -7,5 +9,5 @@ class DatasetConfig:
     dataset_type: Literal["vision"]
     dataset_format: Literal["json", "hf_dataset"]
     dataset_path: str
-    processor_name: str
+    processor_config: Union[dict, ProcessorConfig]
     chat_template: Literal["qwen"] = "qwen"
