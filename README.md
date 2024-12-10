@@ -43,15 +43,16 @@ An example config
                 "dataset_type" : "vision",
                 "dataset_format" : "json",
                 "dataset_path" : "./data/synvo_engine.json",
-                "processor_name" : "llava-hf/llava-onevision-qwen2-0.5b-ov-hf"
+                "processor_config": {
+                    "processor_name": "Qwen/Qwen2-VL-2B-Instruct",
+                    "processor_modality": "vision",
+                    "processor_type": "qwen2_vl"
+                }
             },
             "model_config": {
-                "model_name_or_path" : "llava-hf/llava-onevision-qwen2-7b-ov-hf",
-                "model_class" : "llava_onevision",
-                "attn_implementation" : "flash_attention_2",
-                "overwrite_config" : {
-                    "use_rmpad" : true
-                }
+                "model_name_or_path" : "Qwen/Qwen2-VL-2B-Instruct",
+                "model_class" : "Qwen2VLForConditionalGeneration",
+                "attn_implementation" : "flash_attention_2"
             },
             "per_device_train_batch_size": 1,
             "learning_rate": 5e-05,
@@ -66,8 +67,7 @@ An example config
             "logging_steps" : 1,
             "group_by_length" : true,
             "dataloader_num_workers" : 8,
-            "bf16" : true,
-            "use_liger_kernel" : true
+            "bf16" : true
         }
     }
 ]
