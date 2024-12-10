@@ -2,7 +2,7 @@ from typing import Union, overload
 
 from ...protocol import Processable
 from .config import ProcessorConfig
-from .vision import Qwen2VLDataProcessor
+from .vision import LLaVADataProcessor, Qwen2VLDataProcessor
 
 
 class ProcessorFactory:
@@ -35,6 +35,8 @@ class ProcessorFactory:
     def create_vision_processor(processor_config: ProcessorConfig) -> Processable:
         if processor_config.processor_type == "qwen2_vl":
             return Qwen2VLDataProcessor(processor_config)
+        elif processor_config.processor_type == "llava":
+            return LLaVADataProcessor(processor_config)
         else:
             raise NotImplementedError(
                 f"Processor {processor_config.processor_name} not implemented"
