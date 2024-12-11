@@ -31,6 +31,7 @@ dependencies = [
     "bitsandbytes",
     "triton",
     "loguru",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
