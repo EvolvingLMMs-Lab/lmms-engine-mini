@@ -2,6 +2,7 @@ import json
 from copy import deepcopy
 from typing import Dict
 
+import jsonlines
 import torch
 from datasets import Dataset as HFDataset
 from datasets import Image as HFImageFeature
@@ -29,6 +30,11 @@ class VisionSFTDataset(Dataset):
         if self.config.dataset_format == "json":
             with open(self.config.dataset_path, "r") as f:
                 self.data_list = json.load(f)
+        elif self.config.dataset_format == "jsonl":
+            self.data_list = []
+            with jsonlines.open(self.config.dataset_path, "r") as f:
+                for data in f:
+                    self.data_list.append(data)
         elif self.config.dataset_format == "hf_dataset":
             self.data_list = load_dataset(self.config.dataset_path, split="train")
             self.data_list_no_image = deepcopy(self.data_list)
@@ -74,7 +80,10 @@ class VisionSFTDataset(Dataset):
         return inputs
 
     def __getitem__(self, index):
-        if self.config.dataset_format == "json":
+        if (
+            self.config.dataset_format == "json"
+            or self.config.dataset_format == "jsonl"
+        ):
             data_dict = self.load_from_json(self.data_list[index])
         elif self.config.dataset_format == "hf_dataset":
             data_dict = self.load_from_hf(self.data_list[index])
@@ -91,7 +100,10 @@ class VisionSFTDataset(Dataset):
     @property
     def modality_length(self):
         length = []
-        if self.config.dataset_format == "json":
+        if (
+            self.config.dataset_format == "json"
+            or self.config.dataset_format == "jsonl"
+        ):
             for data in self.data_list:
                 mm_data_num = 0
                 for message in data["messages"]:

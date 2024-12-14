@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 
+import jsonlines
 from datasets import load_dataset
 from tqdm import tqdm
 
@@ -11,6 +12,7 @@ def parse_argument():
     parser.add_argument("--dataset_path", type=str, default="lmms-lab/LLaVA-NeXT-Data")
     parser.add_argument("--split", type=str, default="train")
     parser.add_argument("--output_folder", type=str, default="./data")
+    parser.add_argument("--type", type=str, default="json", choices=["json", "jsonl"])
 
     return parser.parse_args()
 
@@ -52,5 +54,11 @@ if __name__ == "__main__":
         json_dataset.append({"id": item["id"], "messages": messages})
         pbar.update(1)
 
-    with open(os.path.join(args.output_folder, "synvo_engine.json"), "w") as f:
-        json.dump(json_dataset, f, indent=4)
+    if args.type == "json":
+        with open(os.path.join(args.output_folder, "synvo_engine.json"), "w") as f:
+            json.dump(json_dataset, f, indent=4)
+    elif args.type == "jsonl":
+        with jsonlines.open(
+            os.path.join(args.output_folder, "synvo_engine.jsonl"), "w"
+        ) as f:
+            f.write_all(json_dataset)

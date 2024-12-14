@@ -32,6 +32,9 @@ dependencies = [
     "triton",
     "loguru",
     "pydantic",
+    "jsonlines",
+    "librosa",
+    "pynvml"
 ]
 
 [project.optional-dependencies]

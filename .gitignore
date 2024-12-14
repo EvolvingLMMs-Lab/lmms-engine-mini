@@ -165,3 +165,4 @@ data/
 scripts/
 wandb/
 playground/
+.deepspeed_env

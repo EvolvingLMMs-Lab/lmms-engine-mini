@@ -7,7 +7,7 @@ from .processor import ProcessorConfig
 @dataclass
 class DatasetConfig:
     dataset_type: Literal["vision"]
-    dataset_format: Literal["json", "hf_dataset"]
+    dataset_format: Literal["json", "jsonl", "hf_dataset"]
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
     chat_template: Literal["qwen"] = "qwen"
