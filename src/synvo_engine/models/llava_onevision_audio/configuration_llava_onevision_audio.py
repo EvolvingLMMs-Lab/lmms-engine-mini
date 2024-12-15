@@ -173,7 +173,7 @@ class LlavaOnevisionAudioConfig(PretrainedConfig):
                 patch_size=14,
                 image_size=384,
                 num_hidden_layers=26,
-                num_attention_heads=14,
+                num_attention_heads=16,
                 vision_use_head=False,
             )
 
@@ -186,7 +186,9 @@ class LlavaOnevisionAudioConfig(PretrainedConfig):
             )
             text_config = CONFIG_MAPPING[text_config["model_type"]](**text_config)
         elif text_config is None:
-            text_config = CONFIG_MAPPING["qwen2"]()
+            text_config = AutoConfig.from_pretrained(
+                "llava-hf/llava-onevision-qwen2-7b-ov-hf"
+            ).text_config
 
         self.text_config = text_config
 

@@ -29,7 +29,7 @@ from transformers.image_utils import (
     get_image_size,
     to_numpy_array,
 )
-from transformers.models.auto import AutoImageProcessor
+from transformers.models.auto import AutoFeatureExtractor, AutoImageProcessor
 from transformers.models.llava_onevision.processing_llava_onevision import (
     LlavaOnevisionProcessorKwargs,
 )
@@ -218,12 +218,12 @@ class LlavaOnevisionAudioProcessor(ProcessorMixin):
             audio_inputs["audio_attention_mask"] = audio_inputs.pop(
                 "attention_mask"
             )  # rename attention_mask to prevent conflicts later on
-            audio_inputs["audio_features"] = audio_inputs.pop(
+            audio_inputs["audio_values"] = audio_inputs.pop(
                 "input_features"
             )  # rename input_features to audio_features for clarification
-            num_audio_tokens = [
-                feat.shape[0] for feat in audio_inputs["audio_features"]
-            ]
+            # Computes the output length of the convolutional layers and the output length of the audio encoder
+            input_lengths = (audio_inputs["audio_attention_mask"].sum(-1) - 1) // 2 + 1
+            num_audio_tokens = (input_lengths - 2) // 2 + 1
             text = [
                 sample.replace(self.audio_token, self.audio_token * num_audio_token)
                 for sample, num_audio_token in zip(text, num_audio_tokens)
@@ -354,6 +354,7 @@ class LlavaOnevisionAudioProcessor(ProcessorMixin):
         return list(dict.fromkeys(tokenizer_input_names + image_processor_input_names))
 
     # override to save video-config in a separate config file
+    # override to save audio-config in a separate config file
     def save_pretrained(self, save_directory, **kwargs):
         if os.path.isfile(save_directory):
             raise ValueError(
@@ -362,15 +363,23 @@ class LlavaOnevisionAudioProcessor(ProcessorMixin):
         os.makedirs(save_directory, exist_ok=True)
         video_processor_path = os.path.join(save_directory, "video_processor")
         self.video_processor.save_pretrained(video_processor_path)
+        audio_processor_path = os.path.join(save_directory, "audio_processor")
+        self.audio_processor.save_pretrained(audio_processor_path)
 
         video_processor_present = "video_processor" in self.attributes
         if video_processor_present:
             self.attributes.remove("video_processor")
 
+        audio_processor_present = "audio_processor" in self.attributes
+        if audio_processor_present:
+            self.attributes.remove("audio_processor")
+
         outputs = super().save_pretrained(save_directory, **kwargs)
 
         if video_processor_present:
             self.attributes += ["video_processor"]
+        if audio_processor_present:
+            self.attributes += ["audio_processor"]
         return outputs
 
     # override to load video-config from a separate config file
@@ -393,6 +402,18 @@ class LlavaOnevisionAudioProcessor(ProcessorMixin):
             logger.info(
                 "You are loading `LlavaOnevisionProcessor` but the indicated `path` doesn't contain a folder called "
                 "`video_processor`. It is strongly recommended to load and save the processor again so the video processor is saved "
+                "in a separate config."
+            )
+
+        try:
+            audio_processor = AutoFeatureExtractor.from_pretrained(
+                pretrained_model_name_or_path, subfolder="audio_processor"
+            )
+            processor.audio_processor = audio_processor
+        except EnvironmentError:
+            logger.info(
+                "You are loading `WhisperFeatureExtractor` but the indicated `path` doesn't contain a folder called "
+                "`audio_processor`. It is strongly recommended to load and save the processor again so the audio processor is saved "
                 "in a separate config."
             )
 

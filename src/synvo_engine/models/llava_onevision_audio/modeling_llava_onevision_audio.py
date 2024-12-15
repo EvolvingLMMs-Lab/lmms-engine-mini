@@ -194,6 +194,7 @@ class LlavaOnevisionCausalLMOutputWithPast(ModelOutput):
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     image_hidden_states: Optional[torch.FloatTensor] = None
     video_hidden_states: Optional[torch.FloatTensor] = None
+    audio_hidden_states: Optional[torch.FloatTensor] = None
     flops: Optional[Union[float, int]] = None
 
 
@@ -640,7 +641,7 @@ class LlavaOnevisionAudioForConditionalGeneration(
         image_sizes: Optional[torch.LongTensor] = None,
         pixel_values_videos: torch.FloatTensor = None,
         image_sizes_videos: Optional[torch.LongTensor] = None,
-        audio_features: torch.FloatTensor = None,
+        audio_values: torch.FloatTensor = None,
         audio_attention_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -817,6 +818,64 @@ class LlavaOnevisionAudioForConditionalGeneration(
                 special_video_mask, video_features
             )
 
+        # Embed audio features
+        if audio_values is not None:
+            (
+                audio_feat_lengths,
+                audio_output_lengths,
+            ) = self.audio_tower._get_feat_extract_output_lengths(
+                audio_attention_mask.sum(-1)
+            )
+            batch_size, _, max_mel_seq_len = audio_values.shape
+            max_seq_len = (max_mel_seq_len - 2) // 2 + 1
+            # Create a sequence tensor of shape (batch_size, max_seq_len)
+            seq_range = (
+                torch.arange(
+                    0,
+                    max_seq_len,
+                    dtype=audio_feat_lengths.dtype,
+                    device=audio_feat_lengths.device,
+                )
+                .unsqueeze(0)
+                .expand(batch_size, max_seq_len)
+            )
+            lengths_expand = audio_feat_lengths.unsqueeze(1).expand(
+                batch_size, max_seq_len
+            )
+            # Create mask
+            padding_mask = seq_range >= lengths_expand
+
+            audio_attention_mask_ = padding_mask.view(
+                batch_size, 1, 1, max_seq_len
+            ).expand(batch_size, 1, max_seq_len, max_seq_len)
+            audio_attention_mask = audio_attention_mask_.to(
+                dtype=self.audio_tower.conv1.weight.dtype,
+                device=self.audio_tower.conv1.weight.device,
+            )
+            audio_attention_mask[audio_attention_mask_] = float("-inf")
+
+            audio_outputs = self.audio_tower(
+                audio_values, attention_mask=audio_attention_mask
+            )
+            selected_audio_feature = audio_outputs.last_hidden_state
+            audio_features = self.audio_modal_projector(selected_audio_feature)
+            n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
+            n_audio_features = audio_output_lengths
+            if n_audio_tokens != n_audio_features:
+                raise ValueError(
+                    f"Audio features and image tokens do not match: tokens: {n_audio_tokens}, features {n_audio_features}"
+                )
+            audio_mask = (
+                (input_ids == self.config.audio_token_index)
+                .unsqueeze(-1)
+                .expand_as(inputs_embeds)
+                .to(inputs_embeds.device)
+            )
+            audio_features = audio_features.to(
+                inputs_embeds.device, inputs_embeds.dtype
+            )
+            inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_features)
+
         flops = self.calc_gpt_flops(attention_mask)
         if use_rmpad:
             outputs = self.language_model(
@@ -894,6 +953,7 @@ class LlavaOnevisionAudioForConditionalGeneration(
             video_hidden_states=video_features
             if pixel_values_videos is not None
             else None,
+            audio_hidden_states=audio_features if audio_values is not None else None,
         )
 
     def prepare_inputs_for_generation(
@@ -905,6 +965,8 @@ class LlavaOnevisionAudioForConditionalGeneration(
         image_sizes=None,
         pixel_values_videos=None,
         image_sizes_videos=None,
+        audio_values=None,
+        audio_attention_mask=None,
         attention_mask=None,
         cache_position=None,
         num_logits_to_keep=None,
@@ -929,6 +991,8 @@ class LlavaOnevisionAudioForConditionalGeneration(
             model_inputs["image_sizes"] = image_sizes
             model_inputs["pixel_values_videos"] = pixel_values_videos
             model_inputs["image_sizes_videos"] = image_sizes_videos
+            model_inputs["audio_values"] = audio_values
+            model_inputs["audio_attention_mask"] = audio_attention_mask
 
         return model_inputs
 
