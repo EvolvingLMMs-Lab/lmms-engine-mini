@@ -1,11 +1,9 @@
 from typing import List
 
-from transformers import TrainingArguments
-
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
 from ..protocol import Runnable
-from ..train import TrainerConfig, TrainerFactory
+from ..train import TrainerConfig, TrainerFactory, TrainingArguments
 
 
 class Pipeline:

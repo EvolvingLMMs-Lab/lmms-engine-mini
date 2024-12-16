@@ -1,10 +1,15 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from transformers import TrainingArguments
+import transformers
 
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
+
+
+@dataclass
+class TrainingArguments(transformers.TrainingArguments):
+    use_muon: Optional[bool] = False
 
 
 @dataclass
