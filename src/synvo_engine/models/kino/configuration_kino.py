@@ -21,7 +21,7 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class LlavaOnevisionAudioConfig(PretrainedConfig):
+class KinoConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`LlavaOnevisionForConditionalGeneration`]. It is used to instantiate an
     Llava-NeXT model according to the specified arguments, defining the model architecture. Instantiating a configuration
@@ -77,7 +77,7 @@ class LlavaOnevisionAudioConfig(PretrainedConfig):
     >>> configuration = model.config
     ```"""
 
-    model_type = "llava_onevision_audio"
+    model_type = "kino"
     sub_configs = {
         "text_config": AutoConfig,
         "vision_config": AutoConfig,

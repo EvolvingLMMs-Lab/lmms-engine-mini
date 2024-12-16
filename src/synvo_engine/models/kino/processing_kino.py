@@ -40,9 +40,9 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class LlavaOnevisionAudioProcessor(ProcessorMixin):
+class KinoProcessor(ProcessorMixin):
     r"""
-    Constructs a LLaVa-Onevision processor which wraps a LLaVa-Onevision video processor, LLaVa-NeXT image processor and a LLaMa tokenizer into a single processor.
+    Constructs a Kino processor which wraps a video processor, an audio processor, LLaVa-NeXT image processor and a LLaMa tokenizer into a single processor.
 
     [`LlavaNextProcessor`] offers all the functionalities of [`LlavaOnevisionVideoProcessor`], [`LlavaOnevisionImageProcessor`] and [`LlamaTokenizerFast`]. See the
     [`~LlavaOnevisionVideoProcessor.__call__`], [`~LlavaNextProcessor.__call__`] and [`~LlavaNextProcessor.decode`] for more information.

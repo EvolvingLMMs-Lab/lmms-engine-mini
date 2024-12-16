@@ -31,7 +31,7 @@ from transformers.models.auto import AutoModel, AutoModelForCausalLM
 from transformers.utils import add_start_docstrings, logging
 
 from ..modeling_qwen import Qwen2ForCausalLM
-from .configuration_llava_onevision_audio import LlavaOnevisionAudioConfig
+from .configuration_kino import KinoConfig
 
 logger = logging.get_logger(__name__)
 
@@ -200,7 +200,7 @@ class LlavaOnevisionCausalLMOutputWithPast(ModelOutput):
 
 # Copied from transformers.models.llava.modeling_llava.LlavaMultiModalProjector with Llava->LlavaOnevision
 class LlavaOnevisionMultiModalProjector(nn.Module):
-    def __init__(self, config: LlavaOnevisionAudioConfig):
+    def __init__(self, config: KinoConfig):
         super().__init__()
 
         self.linear_1 = nn.Linear(
@@ -219,7 +219,7 @@ class LlavaOnevisionMultiModalProjector(nn.Module):
 
 
 class LlavaOnevisionAudioMultiModalProjector(nn.Module):
-    def __init__(self, config: LlavaOnevisionAudioConfig):
+    def __init__(self, config: KinoConfig):
         super().__init__()
         self.linear = nn.Linear(
             config.audio_config.d_model, config.text_config.hidden_size, bias=True
@@ -252,7 +252,7 @@ LLAVA_ONEVISION_START_DOCSTRING = r"""
     LLAVA_ONEVISION_START_DOCSTRING,
 )
 class LlavaOnevisionPreTrainedModel(PreTrainedModel):
-    config_class = LlavaOnevisionAudioConfig
+    config_class = KinoConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _no_split_modules = ["LlavaOnevisionVisionAttention"]
@@ -383,10 +383,8 @@ LLAVA_ONEVISION_INPUTS_DOCSTRING = r"""
     """The LLaVA-Onevision model which consists of a vision backbone and a language model.""",
     LLAVA_ONEVISION_START_DOCSTRING,
 )
-class LlavaOnevisionAudioForConditionalGeneration(
-    LlavaOnevisionPreTrainedModel, GenerationMixin
-):
-    def __init__(self, config: LlavaOnevisionAudioConfig):
+class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixin):
+    def __init__(self, config: KinoConfig):
         super().__init__(config)
         self.vision_tower = AutoModel.from_config(config.vision_config)
         self.audio_tower = AutoModel.from_config(config.audio_config)
