@@ -4,9 +4,8 @@
 Training framework for Synvo.
 
 ## Current TODO
-1. Support Audio
-2. Test models ft such as Qwen-VL (from transformers or rmpad)
-3. [Long Term] Refactoring... (Possibly processing logic is the most needed one)
+1. Support Flash-Attention for Qwen2AudioEncoder [Current Issue](https://github.com/QwenLM/Qwen2-Audio/issues/51)
+2. [Long Term] Refactoring... (Possibly processing logic is the most needed one)
 
 ## Installation
 Installation is simple
@@ -15,6 +14,12 @@ python3 -m pip install -e .
 ```
 
 ### Use rmpad
+Rmpad is a techniques to accelerate the training process by removing the pad. With it enabled, it will boost the training performance quickly.
+
+However, to use it, there are several restrictions:
+1. You have to enable flash-attention (Thus, QwenAudioEncoder is not supported yet)
+2. You have to build to rmsnorm for flash-attention from source
+
 To use rmpad, you should install flash-attn also. You can do it by
 ```bash
 python3 -m pip install flash-attn --no-build-isolation
@@ -98,5 +103,20 @@ CUDA_LAUNCH_BLOCKING=1 ACCELERATE_CPU_AFFINITY=1 accelerate launch \
     --main_process_port=<port> \
     --machine_rank="0" \
     -m synvo_engine.launch.cli --config scripts/config_custom.json
+```
+
+To launch it using deepspeed, you can
+
+```bash
+CUDA_LAUNCH_BLOCKING=1 ACCELERATE_CPU_AFFINITY=1 accelerate launch \
+    --use_deepspeed \
+    --mixed_precision bf16 \
+    --deepspeed_config_file zero3.json \
+    --num_processes="8" \
+    --num_machines="1" \
+    --main_process_ip=<port_ip> \
+    --main_process_port=<port> \
+    --machine_rank="0" \
+    -m synvo_engine.launch.cli --config ${CONFIG}
 ```
 
