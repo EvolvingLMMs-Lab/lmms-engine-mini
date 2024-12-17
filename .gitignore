@@ -166,3 +166,5 @@ scripts/
 wandb/
 playground/
 .deepspeed_env
+output/
+checkpoints/
