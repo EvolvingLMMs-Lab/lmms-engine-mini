@@ -10,6 +10,7 @@ from ..models import ModelConfig
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     use_muon: Optional[bool] = False
+    freeze_modules: Optional[List[str]] = None
 
 
 @dataclass
@@ -18,4 +19,3 @@ class TrainerConfig:
     dataset_config: DatasetConfig
     model_config: ModelConfig
     trainer_args: TrainingArguments
-    freeze_modules: Optional[List[str]] = None

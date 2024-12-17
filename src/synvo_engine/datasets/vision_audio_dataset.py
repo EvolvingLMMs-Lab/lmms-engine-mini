@@ -23,9 +23,19 @@ class VisionAudioSFTDataset(VisionSFTDataset):
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
         images = [Image.open(image) for image in images_list]
         audios = [
-            librosa.load(audio, sr=self.processor.sampling_rate)[0] for audio in audios
+            librosa.load(audio, sr=self.processor.sampling_rate)[0]
+            for audio in audios_list
         ]
-        inputs = self.processor.process(images=images, hf_messages=hf_messages)
+        if len(images) == 0:
+            images = None
+        if len(audios) == 0:
+            audios = None
+        inputs = self.processor.process(
+            images=images,
+            hf_messages=hf_messages,
+            audios=audios,
+            sampling_rate=self.processor.sampling_rate,
+        )
         return inputs
 
     def load_from_hf(self, data) -> Dict[str, torch.Tensor]:

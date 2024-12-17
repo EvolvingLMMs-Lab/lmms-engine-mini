@@ -858,7 +858,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             selected_audio_feature = audio_outputs.last_hidden_state
             audio_features = self.audio_modal_projector(selected_audio_feature)
             n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
-            n_audio_features = audio_output_lengths
+            n_audio_features = audio_output_lengths.sum()
             if n_audio_tokens != n_audio_features:
                 raise ValueError(
                     f"Audio features and image tokens do not match: tokens: {n_audio_tokens}, features {n_audio_features}"

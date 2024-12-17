@@ -1,6 +1,9 @@
 import importlib
 
-MODEL_REGISTRY = {"llava_onevision": "LlavaOnevisionForConditionalGeneration"}
+MODEL_REGISTRY = {
+    "llava_onevision": "LlavaOnevisionForConditionalGeneration",
+    "kino": "KinoForConditionalGeneration",
+}
 
 
 class ModelFactory:

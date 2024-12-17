@@ -60,6 +60,8 @@ class KinoDataProcessor:
                 )
                 for image_size in image_sizes
             ]
+        else:
+            num_image_tokens = None
 
         if audios is not None:
             audio_inputs = self.processor.audio_processor(
@@ -67,6 +69,7 @@ class KinoDataProcessor:
                 sampling_rate=sampling_rate,
                 return_attention_mask=True,
                 padding="max_length",
+                return_tensors="pt",
                 **kwargs,
             )
             audio_inputs["audio_attention_mask"] = audio_inputs.pop(
@@ -75,6 +78,8 @@ class KinoDataProcessor:
             audio_inputs["audio_values"] = audio_inputs.pop("input_features")
             input_lengths = (audio_inputs["audio_attention_mask"].sum(-1) - 1) // 2 + 1
             num_audio_tokens = (input_lengths - 2) // 2 + 1
+        else:
+            num_audio_tokens = None
 
         inputs = self.get_qwen_template_labels(
             hf_messages, num_image_tokens, num_audio_tokens
@@ -171,7 +176,7 @@ class KinoDataProcessor:
             # Before image pos, no expand
             expanded_encode_id.extend(encode_id[prev:pos])
             # Image pos, expand
-            expanded_encode_id.extend([self.image_token_id] * audio_token_num)
+            expanded_encode_id.extend([self.audio_token_id] * audio_token_num)
             prev = pos + 1
 
             if idx == len(audio_pos) - 1:
