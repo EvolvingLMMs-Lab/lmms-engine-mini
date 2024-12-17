@@ -24,6 +24,12 @@ class Hf_Trainer(BaseTrainer):
         return trainer
 
     def run(self, **kwargs):
+        if self.config.freeze_modules:
+            for modules in self.config.freeze_modules:
+                cls = getattr(self.model, modules, None)
+                if cls is not None:
+                    for param in cls.parameters():
+                        param.requires_grad = False
         self.trainer.train()
         self.trainer.save_state()
         self.safe_save_model_for_hf_trainer(

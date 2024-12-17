@@ -17,6 +17,10 @@ class TrainUtilities:
             for content in message["content"]:
                 if content["type"] == "image_url":
                     new_message["content"].append({"type": "image"})
+                elif content["type"] == "audio_url":
+                    new_message["content"].append(
+                        {"type": "audio", "audio_url": content["audio_url"]["url"]}
+                    )
                 else:
                     new_message["content"].append(
                         {"type": "text", "text": content["text"]}

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import transformers
 
@@ -18,3 +18,4 @@ class TrainerConfig:
     dataset_config: DatasetConfig
     model_config: ModelConfig
     trainer_args: TrainingArguments
+    freeze_modules: Optional[List[str]] = None
