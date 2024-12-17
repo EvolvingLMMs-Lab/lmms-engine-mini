@@ -6,6 +6,7 @@ import jsonlines
 import soundfile as sf
 from datasets import load_dataset
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 
 def parse_argument():
@@ -75,6 +76,30 @@ def construct_audio_messages(question, audio_path):
     return messages
 
 
+def save_image(image, image_path):
+    image.convert("RGB").save(image_path)
+
+
+def save_audio(audio_path, array, sampling_rate):
+    sf.write(audio_path, array, sampling_rate)
+
+
+def handle_single_audio(data_dict):
+    ids = data_dict["id"]
+    item = dataset[ids]
+    index_column = data_dict["index_column"]
+    media_column = data_dict["media_column"]
+    conv_column = data_dict["conv_column"]
+    audio_path = os.path.join(args.output_folder, "audio", item[index_column] + ".wav")
+    save_audio(
+        audio_path, item[media_column]["array"], item[media_column]["sampling_rate"]
+    )
+    messages = construct_audio_messages(
+        item[conv_column].replace("Omni", "Kino"), audio_path
+    )
+    return {"id": item[index_column], "messages": messages}
+
+
 if __name__ == "__main__":
     args = parse_argument()
     dataset = load_dataset(args.dataset_path, split=args.split)
@@ -96,20 +121,17 @@ if __name__ == "__main__":
             json_dataset.append({"id": item["id"], "messages": messages})
             pbar.update(1)
     elif args.modalities == "audio":
-        for item in dataset:
-            audio_path = os.path.join(
-                args.output_folder, "audio", item[index_column] + ".wav"
-            )
-            sf.write(
-                audio_path,
-                item[media_column]["array"],
-                item[media_column]["sampling_rate"],
-            )
-            messages = construct_audio_messages(
-                item[conv_column].replace("Omni", "Kino"), audio_path
-            )
-            json_dataset.append({"id": item[index_column], "messages": messages})
-            pbar.update(1)
+        data_dict_list = [
+            {
+                "id": idx,
+                "index_column": index_column,
+                "media_column": media_column,
+                "conv_column": conv_column,
+            }
+            for idx in range(len(dataset))
+        ]
+        json_dataset = process_map(handle_single_audio, data_dict_list, max_workers=32)
+        pass
 
     if args.type == "json":
         with open(os.path.join(args.output_folder, args.output_name), "w") as f:
