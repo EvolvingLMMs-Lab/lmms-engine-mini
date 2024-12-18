@@ -170,7 +170,9 @@ class KinoProcessor(ProcessorMixin):
                 "Invalid input text. Please provide a string, or a list of strings"
             )
 
-        image_inputs = video_inputs = {}
+        image_inputs = {}
+        video_inputs = {}
+        audio_inputs = {}
 
         if images is not None:
             image_inputs = self.image_processor(
