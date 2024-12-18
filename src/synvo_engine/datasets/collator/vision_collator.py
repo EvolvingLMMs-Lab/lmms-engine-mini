@@ -39,7 +39,7 @@ class VisionCollator:
         labels = self.pad_sequence(
             labels,
             batch_first=True,
-            padding_value=self.processor.tokenizer.pad_token_id,
+            padding_value=-100,
         )
         attention_mask = input_ids.ne(self.processor.tokenizer.pad_token_id)
         batched_inputs = {}

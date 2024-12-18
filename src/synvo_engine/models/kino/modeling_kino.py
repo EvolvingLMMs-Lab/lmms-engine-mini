@@ -872,7 +872,21 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             audio_features = audio_features.to(
                 inputs_embeds.device, inputs_embeds.dtype
             )
-            inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_features)
+            # Audio feature is in (bs, max_seq_len, hidden_size)
+            # If directly masked scatter, the embed will be place one by one (order is incorret)
+            # We remove the padded values first
+            unpadded_audio_features = [
+                audio_feat[:audio_output_length]
+                for audio_feat, audio_output_length in zip(
+                    audio_features, audio_output_lengths
+                )
+            ]
+            # Concat the audio features
+            # Should exactly have audio_mask.sum() values
+            unpadded_audio_features = torch.concatenate(unpadded_audio_features, dim=0)
+            inputs_embeds = inputs_embeds.masked_scatter(
+                audio_mask, unpadded_audio_features
+            )
 
         flops = self.calc_gpt_flops(attention_mask)
         if use_rmpad:

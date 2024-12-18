@@ -17,6 +17,7 @@ class KinoDataProcessor:
 
     def build(self):
         self.processor = self._build_processor()
+        self.processor.chat_template = self.chat_template_no_system
 
     def _build_processor(self):
         processor = KinoProcessor.from_pretrained(self.config.processor_name)
@@ -94,7 +95,11 @@ class KinoDataProcessor:
         return inputs
 
     def get_qwen_template_labels(
-        self, hf_messages, num_image_tokens: List[int], num_audio_tokens: int
+        self,
+        hf_messages,
+        num_image_tokens: List[int],
+        num_audio_tokens: int,
+        system_message: str = "You are a helpful assistant",
     ):
         image_token_index = self.processor.tokenizer.convert_tokens_to_ids(
             self.processor.image_token
@@ -105,6 +110,10 @@ class KinoDataProcessor:
         ]
         input_id, target = [], []
         start_from = 0
+        input_id += self.processor.tokenizer.apply_chat_template(
+            [{"role": "system", "content": system_message}]
+        )
+        target += [-100] * len(input_id)
         for message in hf_messages:
             role = message["role"]
             encode_id = self.processor.apply_chat_template([message], tokenize=True)
@@ -128,9 +137,9 @@ class KinoDataProcessor:
             if encode_id in unmask_tokens_idx:
                 target[idx] = encode_id
             if encode_id == image_token_index:
-                # Revert image so that we recognize it in labels
-                # Unmask later
-                target[idx] = image_token_index
+                target[idx] = -100
+            if encode_id == self.audio_token_id:
+                target[idx] = -100
 
         input_id = torch.tensor(input_id, dtype=torch.long)
         target = torch.tensor(target, dtype=torch.long)
@@ -204,3 +213,42 @@ class KinoDataProcessor:
     @property
     def sampling_rate(self):
         return self.processor.audio_processor.sampling_rate
+
+    @property
+    def chat_template_no_system(self):
+        return (
+            "{% set audio_count = namespace(value=0) %}"
+            "{% set image_count = namespace(value=0) %}"
+            "{% set video_count = namespace(value=0) %}"
+            "{% for message in messages %}"
+            "<|im_start|>{{ message['role'] }}\n"
+            "{% if message['content'] is string %}"
+            "{{ message['content'] }}<|im_end|>\n"
+            "{% else %}"
+            "{% for content in message['content'] %}"
+            "{% if 'audio' in content or 'audio_url' in content %}"
+            "{% set audio_count.value = audio_count.value + 1 %}"
+            "Audio {{ audio_count.value }}: <|AUDIO|>\n"
+            "{% elif content['type'] == 'image' or 'image' in content or 'image_url' in content %}"
+            "{% set image_count.value = image_count.value + 1 %}"
+            "{% if add_vision_id %}"
+            "Picture {{ image_count.value }}: "
+            "{% endif %}"
+            "<image>"
+            "{% elif content['type'] == 'video' or 'video' in content %}"
+            "{% set video_count.value = video_count.value + 1 %}"
+            "{% if add_vision_id %}"
+            "Video {{ video_count.value }}: "
+            "{% endif %}"
+            "<video>"
+            "{% elif 'text' in content %}"
+            "{{ content['text'] }}"
+            "{% endif %}"
+            "{% endfor %}"
+            "<|im_end|>\n"
+            "{% endif %}"
+            "{% endfor %}"
+            "{% if add_generation_prompt %}"
+            "<|im_start|>assistant\n"
+            "{% endif %}"
+        )
