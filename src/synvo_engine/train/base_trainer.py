@@ -24,6 +24,10 @@ class BaseTrainer(ABC):
         self.train_dataset = self._build_train_dataset()
         if self.model_config.pretrain_mm_mlp_adapter is not None:
             self._load_mm_projector()
+        if self.config.trainer_args.use_liger_kernel:
+            self._apply_linger_kernel()
+            # Set to False as we already apply the liger kernel by ourselves
+            self.config.trainer_args.use_liger_kernel = False
 
     def _build_model(self):
         model_class = ModelFactory.create_model(self.model_config.model_class)
@@ -37,6 +41,36 @@ class BaseTrainer(ABC):
                 setattr(model.config, key, value)
                 logger.info(f"Overwrite {key} to {value}")
         return model
+
+    def _apply_linger_kernel(self):
+        try:
+            from liger_kernel.transformers import _apply_liger_kernel_to_instance
+            from liger_kernel.transformers.monkey_patch import (
+                MODEL_TYPE_TO_APPLY_LIGER_FN,
+            )
+        except ImportError as e:
+            logger.error(
+                "You have set `use_liger_kernel` to `True` but liger-kernel >= 0.3.0 is not available. "
+                "Please install it with `pip install liger-kernel`"
+            )
+
+        try:
+            model_type = getattr(self.model.language_model, "config", None) and getattr(
+                self.model.language_model.config, "model_type", None
+            )
+            _apply_liger_kernel_to_instance(self.model.language_model)
+            if model_type and model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
+                logger.info(
+                    f"Successfully apply liger kernels to model type {model_type}"
+                )
+            else:
+                logger.info(
+                    f"Cannot find model type {model_type} in MODEL_TYPE_TO_APPLY_LIGER_FN, skip applying liger kernels"
+                )
+        except Exception as e:
+            logger.error(
+                f"Try to apply liger kernel on the language model of the model, but failed with exceptions : \n {e}"
+            )
 
     def _load_mm_projector(self):
         pretrain_mm_mlp_adapter = self.config.model_config.pretrain_mm_mlp_adapter
