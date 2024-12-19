@@ -36,6 +36,11 @@ python3 -m pip install .
 # python3 -m pip install -v .
 ```
 
+### Liger Kernel
+[Liger Kernel](https://github.com/linkedin/Liger-Kernel) is a collection of Triton kernels designed specifically for LLM training. It can effectively increase multi-GPU training throughput and reduces memory usage. Based on my testing, it does reduces memory usage when finetuning models. Benchmarking based on my testing under kino stage-1 training settings, it reduces the memory usage by around 30%.
+
+To use it is simple, you need to first install it using `pip install liger-kernel`. Then set the `use_liger_kernel` in the trainer config to `true`. Make sure your model has a language model module and is in this [list](https://github.com/linkedin/Liger-Kernel/blob/61eefe9a4429459351979dc7fe1de746fd7ca86f/src/liger_kernel/transformers/monkey_patch.py#L795-L806) of modules
+
 ## Prepare Config
 The overall design of our framework is that we build each component as a pipeline, you will need to pass in a config to use for init the pipeline.
 
