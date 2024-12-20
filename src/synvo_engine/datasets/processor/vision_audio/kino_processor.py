@@ -105,6 +105,7 @@ class KinoDataProcessor:
             self.processor.image_token
         )
         special_tokens = self.processor.tokenizer.additional_special_tokens
+        special_tokens.extend(["<|im_start|>", "<|im_end|>"])
         unmask_tokens_idx = [
             self.processor.tokenizer.convert_tokens_to_ids(t) for t in special_tokens
         ]
