@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 import torch
 from loguru import logger
@@ -34,7 +35,10 @@ class Hf_Trainer(BaseTrainer):
                 if cls is not None:
                     for param in cls.parameters():
                         param.requires_grad = False
-        self.trainer.train()
+        if list(pathlib.Path(self.config.trainer_args.output_dir).glob("checkpoint-*")):
+            self.trainer.train(resume_from_checkpoint=True)
+        else:
+            self.trainer.train()
         self.trainer.save_state()
         self.safe_save_model_for_hf_trainer(
             self.trainer, self.config.trainer_args.output_dir
