@@ -1,9 +1,11 @@
 import json
+import os
 from copy import deepcopy
 from typing import Dict
 
 import jsonlines
 import torch
+import yaml
 from datasets import Dataset as HFDataset
 from datasets import Image as HFImageFeature
 from datasets import Sequence, load_dataset
@@ -39,6 +41,30 @@ class VisionSFTDataset(Dataset):
             self.data_list = load_dataset(self.config.dataset_path, split="train")
             self.data_list_no_image = deepcopy(self.data_list)
             self.data_list_no_image = self.data_list_no_image.remove_columns("image")
+        elif self.config.dataset_format == "yaml":
+            self.data_list = []
+            self.data_folder = []
+            with open(self.config.dataset_path, "r") as f:
+                yaml_data = yaml.safe_load(f)
+                datasets = yaml_data.get("datasets")
+                data_paths = [dataset.get("json_path") for dataset in datasets]
+                data_folders = [dataset.get("data_folder") for dataset in datasets]
+                data_types = [dataset.get("data_type") for dataset in datasets]
+            for data_path, data_folder, data_type in zip(
+                data_paths, data_folders, data_types
+            ):
+                if data_type == "json":
+                    with open(data_path, "r") as f:
+                        data = json.load(f)
+                        self.data_list.extend(data)
+                        self.data_folder.extend([data_folder] * len(data))
+                elif data_type == "jsonl":
+                    cur_data_dict = []
+                    with open(data_path, "r") as json_file:
+                        for line in json_file:
+                            cur_data_dict.append(json.loads(line.strip()))
+                    self.data_list.extend(cur_data_dict)
+                    self.data_folder.extend([data_folder] * len(cur_data_dict))
         else:
             raise NotImplementedError
 
@@ -55,7 +81,7 @@ class VisionSFTDataset(Dataset):
         self.processor = self._build_processor()
         self.processor.build()
 
-    def load_from_json(self, data) -> Dict[str, torch.Tensor]:
+    def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
         # TODO Write a protocol for vision openai input
         images_list = []
         messages = data["messages"]
@@ -65,7 +91,12 @@ class VisionSFTDataset(Dataset):
                     images_list.append(content["image_url"]["url"])
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
-        images = [Image.open(image) for image in images_list]
+        if data_folder is not None:
+            images = [
+                Image.open(os.path.join(data_folder, image)) for image in images_list
+            ]
+        else:
+            images = [Image.open(image) for image in images_list]
         inputs = self.processor.process(images=images, hf_messages=hf_messages)
         return inputs
 
@@ -85,6 +116,10 @@ class VisionSFTDataset(Dataset):
             or self.config.dataset_format == "jsonl"
         ):
             data_dict = self.load_from_json(self.data_list[index])
+        elif self.config.dataset_format == "yaml":
+            data_dict = self.load_from_json(
+                self.data_list[index], self.data_folder[index]
+            )
         elif self.config.dataset_format == "hf_dataset":
             data_dict = self.load_from_hf(self.data_list[index])
         else:
@@ -103,6 +138,7 @@ class VisionSFTDataset(Dataset):
         if (
             self.config.dataset_format == "json"
             or self.config.dataset_format == "jsonl"
+            or self.config.dataset_format == "yaml"
         ):
             for data in self.data_list:
                 mm_data_num = 0

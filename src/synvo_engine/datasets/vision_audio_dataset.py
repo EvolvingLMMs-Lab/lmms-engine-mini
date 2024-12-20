@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 
 import librosa
@@ -9,7 +10,7 @@ from .vision_dataset import VisionSFTDataset
 
 
 class VisionAudioSFTDataset(VisionSFTDataset):
-    def load_from_json(self, data) -> Dict[str, torch.Tensor]:
+    def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
         images_list = []
         audios_list = []
         messages = data["messages"]
@@ -21,11 +22,22 @@ class VisionAudioSFTDataset(VisionSFTDataset):
                     audios_list.append(content["audio_url"]["url"])
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
-        images = [Image.open(image) for image in images_list]
-        audios = [
-            librosa.load(audio, sr=self.processor.sampling_rate)[0]
-            for audio in audios_list
-        ]
+        if data_folder is not None:
+            images = [
+                Image.open(os.path.join(data_folder, image)) for image in images_list
+            ]
+            audios = [
+                librosa.load(
+                    os.path.join(data_folder, audio), sr=self.processor.sampling_rate
+                )[0]
+                for audio in audios_list
+            ]
+        else:
+            images = [Image.open(image) for image in images_list]
+            audios = [
+                librosa.load(audio, sr=self.processor.sampling_rate)[0]
+                for audio in audios_list
+            ]
         if len(images) == 0:
             images = None
         if len(audios) == 0:
@@ -47,6 +59,7 @@ class VisionAudioSFTDataset(VisionSFTDataset):
         if (
             self.config.dataset_format == "json"
             or self.config.dataset_format == "jsonl"
+            or self.config.dataset_format == "yaml"
         ):
             for data in self.data_list:
                 mm_data_num = 0
