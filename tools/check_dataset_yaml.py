@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from multiprocessing import set_start_method
 
 import jsonlines
 import yaml
@@ -35,10 +36,12 @@ def check_data_exists(data_dict):
     for path in audios_list:
         if not os.path.exists(os.path.join(data_folder, path)):
             not_exists.append(path)
+            print(os.path.join(data_folder, path))
     return not_exists
 
 
 if __name__ == "__main__":
+    set_start_method("spawn")
     args = parse_argument()
     data_list = []
     data_folder_list = []
@@ -67,7 +70,7 @@ if __name__ == "__main__":
         {"data_folder": data_folder, "data": data}
         for data_folder, data in zip(data_folder_list, data_list)
     ]
-    results = process_map(check_data_exists, data_dict, max_workers=16, chunksize=1)
+    results = process_map(check_data_exists, data_dict, max_workers=32, chunksize=1)
     not_exists = []
     for data_path in results:
         not_exists.extend(data_path)
