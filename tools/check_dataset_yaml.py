@@ -1,10 +1,11 @@
 import argparse
 import json
 import os
-from multiprocessing import set_start_method
+from multiprocessing import Pool
 
 import jsonlines
 import yaml
+from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
@@ -41,7 +42,6 @@ def check_data_exists(data_dict):
 
 
 if __name__ == "__main__":
-    set_start_method("spawn")
     args = parse_argument()
     data_list = []
     data_folder_list = []
@@ -70,7 +70,8 @@ if __name__ == "__main__":
         {"data_folder": data_folder, "data": data}
         for data_folder, data in zip(data_folder_list, data_list)
     ]
-    results = process_map(check_data_exists, data_dict, max_workers=32, chunksize=1)
+    with Pool(32) as p:
+        results = list(tqdm(p.imap(check_data_exists, data_dict), total=len(data_dict)))
     not_exists = []
     for data_path in results:
         not_exists.extend(data_path)
