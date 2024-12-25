@@ -2,9 +2,9 @@ import os
 import pathlib
 
 import torch
-from loguru import logger
 from transformers import Trainer
 
+from ..utils import Logging
 from ..utils.train import TrainUtilities
 from .base_trainer import BaseTrainer
 from .config import TrainerConfig
@@ -49,7 +49,7 @@ class Hf_Trainer(BaseTrainer):
         trainer.accelerator.wait_for_everyone()
         torch.cuda.synchronize()
         check_only_save_mm_adapter = self.config.trainer_args.only_save_mm_adapter
-        logger.info(f"Only save projectors: {check_only_save_mm_adapter}")
+        Logging.info(f"Only save projectors: {check_only_save_mm_adapter}")
 
         if check_only_save_mm_adapter:
             # Only save Adapter

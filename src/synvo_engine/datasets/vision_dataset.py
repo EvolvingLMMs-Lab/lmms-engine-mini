@@ -9,11 +9,12 @@ import yaml
 from datasets import Dataset as HFDataset
 from datasets import Image as HFImageFeature
 from datasets import Sequence, load_dataset
-from loguru import logger
 from PIL import Image
 from torch.utils.data import Dataset
 from transformers import AutoProcessor
 
+from ..utils import Logging
+from ..utils.data_utils import DataUtilities
 from ..utils.train import TrainUtilities
 from .collator import VisionCollator
 from .config import DatasetConfig
@@ -30,41 +31,17 @@ class VisionSFTDataset(Dataset):
 
     def _build_from_config(self):
         if self.config.dataset_format == "json":
-            with open(self.config.dataset_path, "r") as f:
-                self.data_list = json.load(f)
+            self.data_list = DataUtilities.load_json(self.config.dataset_path)
         elif self.config.dataset_format == "jsonl":
-            self.data_list = []
-            with jsonlines.open(self.config.dataset_path, "r") as f:
-                for data in f:
-                    self.data_list.append(data)
+            self.data_list = DataUtilities.load_jsonlines(self.config.dataset_path)
         elif self.config.dataset_format == "hf_dataset":
             self.data_list = load_dataset(self.config.dataset_path, split="train")
             self.data_list_no_image = deepcopy(self.data_list)
             self.data_list_no_image = self.data_list_no_image.remove_columns("image")
         elif self.config.dataset_format == "yaml":
-            self.data_list = []
-            self.data_folder = []
-            with open(self.config.dataset_path, "r") as f:
-                yaml_data = yaml.safe_load(f)
-                datasets = yaml_data.get("datasets")
-                data_paths = [dataset.get("json_path") for dataset in datasets]
-                data_folders = [dataset.get("data_folder") for dataset in datasets]
-                data_types = [dataset.get("data_type") for dataset in datasets]
-            for data_path, data_folder, data_type in zip(
-                data_paths, data_folders, data_types
-            ):
-                if data_type == "json":
-                    with open(data_path, "r") as f:
-                        data = json.load(f)
-                        self.data_list.extend(data)
-                        self.data_folder.extend([data_folder] * len(data))
-                elif data_type == "jsonl":
-                    cur_data_dict = []
-                    with open(data_path, "r") as json_file:
-                        for line in json_file:
-                            cur_data_dict.append(json.loads(line.strip()))
-                    self.data_list.extend(cur_data_dict)
-                    self.data_folder.extend([data_folder] * len(cur_data_dict))
+            self.data_list, self.data_folder = DataUtilities.load_yaml(
+                self.config.dataset_path
+            )
         else:
             raise NotImplementedError
 
@@ -73,7 +50,7 @@ class VisionSFTDataset(Dataset):
         if self.processor_config.overwrite_config:
             for key, value in self.processor_config.overwrite_config.items():
                 setattr(processor, key, value)
-                logger.info(f"Overwrite processor {key} to {value}")
+                Logging.info(f"Overwrite processor {key} to {value}")
         return processor
 
     def build(self):

@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 
 import torch
-from loguru import logger
 
 from ..datasets import DatasetFactory
 from ..models import ModelFactory
+from ..utils import Logging
 from ..utils.train import TrainUtilities
 from .config import TrainerConfig
 
@@ -39,7 +39,7 @@ class BaseTrainer(ABC):
         if self.model_config.overwrite_config:
             for key, value in self.model_config.overwrite_config.items():
                 setattr(model.config, key, value)
-                logger.info(f"Overwrite {key} to {value}")
+                Logging.info(f"Overwrite {key} to {value}")
         return model
 
     def _apply_linger_kernel(self):
@@ -49,7 +49,7 @@ class BaseTrainer(ABC):
                 MODEL_TYPE_TO_APPLY_LIGER_FN,
             )
         except ImportError as e:
-            logger.error(
+            Logging.error(
                 "You have set `use_liger_kernel` to `True` but liger-kernel >= 0.3.0 is not available. "
                 "Please install it with `pip install liger-kernel`"
             )
@@ -60,15 +60,15 @@ class BaseTrainer(ABC):
             )
             _apply_liger_kernel_to_instance(self.model.language_model)
             if model_type and model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
-                logger.info(
+                Logging.info(
                     f"Successfully apply liger kernels to model type {model_type}"
                 )
             else:
-                logger.info(
+                Logging.info(
                     f"Cannot find model type {model_type} in MODEL_TYPE_TO_APPLY_LIGER_FN, skip applying liger kernels"
                 )
         except Exception as e:
-            logger.error(
+            Logging.error(
                 f"Try to apply liger kernel on the language model of the model, but failed with exceptions : \n {e}"
             )
 
@@ -98,7 +98,7 @@ class BaseTrainer(ABC):
             pretrain_mm_mlp_adapter,
         )
 
-        logger.info(
+        Logging.info(
             f"Loaded multi_modal_projector,audio_modal_projector weights from {pretrain_mm_mlp_adapter}."
         )
 

@@ -3,8 +3,9 @@ from typing import Iterable, List, Union
 
 import deepspeed
 import torch
-from loguru import logger
 from transformers import AutoProcessor
+
+from ..logging_utils import Logging
 
 
 class TrainUtilities:
@@ -92,7 +93,7 @@ class TrainUtilities:
         if hasattr(param, "ds_id"):
             if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
                 if not ignore_status:
-                    logger.warning(
+                    Logging.warning(
                         f"{name}: param.ds_status != ZeroParamStatus.NOT_AVAILABLE: {param.ds_status}"
                     )
             with zero.GatheredParameters([param]):
