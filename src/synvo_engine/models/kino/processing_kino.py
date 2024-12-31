@@ -78,7 +78,7 @@ class KinoProcessor(ProcessorMixin):
     ]
     image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer"
-    video_processor_class = "LlavaOnevisionVideoProcessor"
+    video_processor_class = "AutoImageProcessor"
     audio_processor_class = "WhisperFeatureExtractor"
 
     def __init__(
@@ -178,36 +178,53 @@ class KinoProcessor(ProcessorMixin):
             image_inputs = self.image_processor(
                 images, **output_kwargs["images_kwargs"]
             )
-
-            image_sizes = iter(image_inputs["image_sizes"])
-            height, width = get_image_size(
-                to_numpy_array(image_inputs["pixel_values"][0][0]),
-                channel_dim=output_kwargs["images_kwargs"].get("data_format"),
-            )
-            text = self._expand_image_tokens(
-                text, image_sizes, height, width, self.image_token
-            )
+            if self.vision_feature_select_strategy == "navit":
+                image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
+                merge_size = self.image_processor.merge_size
+                num_image_tokens = [
+                    (image_size[-2] * image_size[-1]).item() // (merge_size**2)
+                    for image_size in image_inputs["image_sizes"]
+                ]
+                text = self.expand_image_tokens_navit(
+                    text, num_image_tokens, self.image_token
+                )
+            else:
+                image_sizes = iter(image_inputs["image_sizes"])
+                height, width = get_image_size(
+                    to_numpy_array(image_inputs["pixel_values"][0][0]),
+                    channel_dim=output_kwargs["images_kwargs"].get("data_format"),
+                )
+                text = self._expand_image_tokens(
+                    text, image_sizes, height, width, self.image_token
+                )
 
         if videos is not None:
             video_inputs = self.video_processor(
                 videos, **output_kwargs["videos_kwargs"]
             )
 
-            one_video = to_numpy_array(video_inputs["pixel_values_videos"][0])
-            height, width = get_image_size(
-                one_video[0],
-                channel_dim=output_kwargs["images_kwargs"].get("data_format"),
-            )
-            num_frames = one_video.shape[0]  # frame dim is always after batch dim
-            patches_height_width = int(math.sqrt(self.num_image_tokens))
-            pooled_height_width = math.ceil(patches_height_width / 2)
-            num_video_tokens = (
-                num_frames * pooled_height_width * pooled_height_width
-            ) + 1  # +1 for newline token
-            text = [
-                sample.replace(self.video_token, self.video_token * num_video_tokens)
-                for sample in text
-            ]
+            if self.vision_feature_select_strategy == "navit":
+                raise NotImplementedError(
+                    "Navit strategy haven't implemented for video yet."
+                )
+            else:
+                one_video = to_numpy_array(video_inputs["pixel_values_videos"][0])
+                height, width = get_image_size(
+                    one_video[0],
+                    channel_dim=output_kwargs["images_kwargs"].get("data_format"),
+                )
+                num_frames = one_video.shape[0]  # frame dim is always after batch dim
+                patches_height_width = int(math.sqrt(self.num_image_tokens))
+                pooled_height_width = math.ceil(patches_height_width / 2)
+                num_video_tokens = (
+                    num_frames * pooled_height_width * pooled_height_width
+                ) + 1  # +1 for newline token
+                text = [
+                    sample.replace(
+                        self.video_token, self.video_token * num_video_tokens
+                    )
+                    for sample in text
+                ]
 
         if audios is not None:
             audio_inputs = self.audio_processor(
@@ -264,6 +281,27 @@ class KinoProcessor(ProcessorMixin):
                 sample = sample.replace(
                     special_token, "<placeholder>" * num_image_tokens * num_frames, 1
                 )
+            prompt_strings.append(sample)
+        text = [
+            sample.replace("<placeholder>", special_token) for sample in prompt_strings
+        ]
+        return text
+
+    def expand_image_tokens_navit(
+        self,
+        text: List[TextInput],
+        num_image_tokens: List[int],
+        special_token: str,
+    ):
+        prompt_strings = []
+        current_img_idx = 0
+        for sample in text:
+            while special_token in sample:
+                num_image_token = num_image_tokens[current_img_idx]
+                sample = sample.replace(
+                    special_token, "<placeholder>" * num_image_token, 1
+                )
+                current_img_idx += 1
             prompt_strings.append(sample)
         text = [
             sample.replace("<placeholder>", special_token) for sample in prompt_strings
