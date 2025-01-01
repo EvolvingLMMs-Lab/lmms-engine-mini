@@ -33,6 +33,9 @@ from transformers.models.qwen2_audio.modeling_qwen2_audio import (
     Qwen2AudioAttention,
     Qwen2AudioSdpaAttention,
 )
+from transformers.models.qwen2_vl.modeling_qwen2_vl import (
+    Qwen2VisionTransformerPretrainedModel,
+)
 from transformers.utils import add_start_docstrings, logging
 
 from ..modeling_qwen import Qwen2ForCausalLM
@@ -753,15 +756,27 @@ LLAVA_ONEVISION_INPUTS_DOCSTRING = r"""
 class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixin):
     def __init__(self, config: KinoConfig):
         super().__init__(config)
-        self.vision_tower = AutoModel.from_config(config.vision_config)
+        if config.vision_config.model_type == "qwen2_vl":
+            self.vision_tower = Qwen2VisionTransformerPretrainedModel._from_config(
+                config.vision_config
+            )
+        else:
+            self.vision_tower = AutoModel.from_config(config.vision_config)
         self.audio_tower = Qwen2AudioEncoder(config.audio_config)
 
-        self.multi_modal_projector = LlavaOnevisionMultiModalProjector(config)
+        if config.projector_type == "mlp":
+            self.multi_modal_projector = LlavaOnevisionMultiModalProjector(config)
+        elif config.projector_type == "identity":
+            self.multi_modal_projector = nn.Identity()
         self.audio_modal_projector = LlavaOnevisionAudioMultiModalProjector(config)
         embed_std = 1 / math.sqrt(config.text_config.hidden_size)
-        self.image_newline = nn.Parameter(
-            torch.randn(config.text_config.hidden_size, dtype=self.dtype) * embed_std
-        )
+        if config.vision_aspect_ratio == "navit":
+            self.image_newline = None
+        else:
+            self.image_newline = nn.Parameter(
+                torch.randn(config.text_config.hidden_size, dtype=self.dtype)
+                * embed_std
+            )
 
         self.vocab_size = config.text_config.vocab_size
         if self.config.use_rmpad:
@@ -998,6 +1013,12 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
 
         return video_features
 
+    def get_navit_features(
+        self, pixel_values: torch.Tensor, grid_thw: torch.LongTensor
+    ):
+        features = self.vision_tower(pixel_values, grid_thw)
+        return features
+
     @add_start_docstrings(LLAVA_ONEVISION_INPUTS_DOCSTRING)
     def forward(
         self,
@@ -1117,18 +1138,24 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
 
         # Images are processed with Anyres
         if pixel_values is not None:
-            image_features = self.get_image_features(
-                pixel_values,
-                image_sizes,
-                vision_feature_layer=vision_feature_layer,
-                vision_feature_select_strategy=vision_feature_select_strategy,
-            )
-            image_features, feature_lens = self.pack_image_features(
-                image_features,
-                image_sizes,
-                image_newline=self.image_newline,
-                vision_aspect_ratio=vision_aspect_ratio,
-            )
+            if self.config.vision_aspect_ratio == "navit":
+                image_features = self.get_navit_features(
+                    pixel_values,
+                    image_sizes,
+                )
+            else:
+                image_features = self.get_image_features(
+                    pixel_values,
+                    image_sizes,
+                    vision_feature_layer=vision_feature_layer,
+                    vision_feature_select_strategy=vision_feature_select_strategy,
+                )
+                image_features, feature_lens = self.pack_image_features(
+                    image_features,
+                    image_sizes,
+                    image_newline=self.image_newline,
+                    vision_aspect_ratio=vision_aspect_ratio,
+                )
             n_image_tokens = (input_ids == self.config.image_token_index).sum().item()
             n_image_features = image_features.shape[0]
 
@@ -1151,18 +1178,24 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
 
         # Video are simply embedded and further pooled to decrease seq len
         if pixel_values_videos is not None:
-            video_features = self.get_video_features(
-                pixel_values_videos,
-                vision_feature_layer=vision_feature_layer,
-                vision_feature_select_strategy=vision_feature_select_strategy,
-            )
-            image_newline = (
-                self.image_newline[None, None, :]
-                .repeat(video_features.shape[0], 1, 1)
-                .to(video_features.device)
-            )
-            video_features = torch.cat((video_features, image_newline), dim=1)
-            video_features = video_features.flatten(0, 1)
+            if self.config.vision_aspect_ratio == "navit":
+                video_features = self.get_navit_features(
+                    pixel_values_videos,
+                    image_sizes_videos,
+                )
+            else:
+                video_features = self.get_video_features(
+                    pixel_values_videos,
+                    vision_feature_layer=vision_feature_layer,
+                    vision_feature_select_strategy=vision_feature_select_strategy,
+                )
+                image_newline = (
+                    self.image_newline[None, None, :]
+                    .repeat(video_features.shape[0], 1, 1)
+                    .to(video_features.device)
+                )
+                video_features = torch.cat((video_features, image_newline), dim=1)
+                video_features = video_features.flatten(0, 1)
 
             n_video_tokens = (input_ids == self.config.video_token_index).sum().item()
             n_video_features = video_features.shape[0]

@@ -16,6 +16,7 @@
 
 from transformers.configuration_utils import PretrainedConfig
 from transformers.models.auto import CONFIG_MAPPING, AutoConfig
+from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
@@ -93,6 +94,7 @@ class KinoConfig(PretrainedConfig):
         video_token_index=151647,
         audio_token_index=151648,
         projector_hidden_act="gelu",
+        projector_type="mlp",
         vision_feature_select_strategy="full",
         vision_feature_layer=-1,
         vision_aspect_ratio="anyres_max_9",
@@ -105,6 +107,7 @@ class KinoConfig(PretrainedConfig):
         self.video_token_index = video_token_index
         self.audio_token_index = audio_token_index
         self.projector_hidden_act = projector_hidden_act
+        self.projector_type = projector_type
 
         if vision_feature_select_strategy not in ["default", "full"]:
             raise ValueError(
@@ -157,15 +160,24 @@ class KinoConfig(PretrainedConfig):
                 [2304, 2304],
             ]
         )
-        self.image_grid_pinpoints = image_grid_pinpoints
+        # For navit, there is no image aspect ratio
+        if self.vision_aspect_ratio == "navit":
+            self.image_grid_pinpoints = None
+        else:
+            self.image_grid_pinpoints = image_grid_pinpoints
 
         if isinstance(vision_config, dict):
-            vision_config["model_type"] = (
-                vision_config["model_type"]
-                if "model_type" in vision_config
-                else "siglip_vision_model"
-            )
-            vision_config = CONFIG_MAPPING[vision_config["model_type"]](**vision_config)
+            if self.vision_aspect_ratio == "navit":
+                vision_config = Qwen2VLVisionConfig(**vision_config)
+            else:
+                vision_config["model_type"] = (
+                    vision_config["model_type"]
+                    if "model_type" in vision_config
+                    else "siglip_vision_model"
+                )
+                vision_config = CONFIG_MAPPING[vision_config["model_type"]](
+                    **vision_config
+                )
         elif vision_config is None:
             vision_config = CONFIG_MAPPING["siglip_vision_model"](
                 hidden_size=1152,
