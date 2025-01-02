@@ -52,3 +52,4 @@ class PreferenceData(BaseModel):
     id: int
     chosen: List[SFTChatDataMessages]
     rejected: List[SFTChatDataMessages]
+    prompt: List[SFTChatDataMessages]
