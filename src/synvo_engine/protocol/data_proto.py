@@ -46,3 +46,8 @@ class SFTChatDataMessages(BaseModel):
 class SFTChatData(BaseModel):
     messages: List[SFTChatDataMessages]
     id: int
+
+class PreferenceData(BaseModel):
+    id: int
+    chosen: List[SFTChatDataMessages]
+    rejected: List[SFTChatDataMessages]
