@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import transformers
+from trl import DPOConfig
 
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
@@ -15,8 +16,17 @@ class TrainingArguments(transformers.TrainingArguments):
 
 
 @dataclass
+class DPOArguments(DPOConfig):
+    freeze_modules: Optional[List[str]] = None
+
+
+TrainingArgumentType = Union[TrainingArguments, DPOArguments]
+
+
+@dataclass
 class TrainerConfig:
     trainer_type: Literal["accelerate_megatron", "hf_trainer"]
     dataset_config: DatasetConfig
     model_config: ModelConfig
-    trainer_args: TrainingArguments
+    trainer_args: TrainingArgumentType
+    trainer_args_type: Literal["sft", "dpo"] = "sft"

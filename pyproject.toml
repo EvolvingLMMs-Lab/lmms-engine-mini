@@ -38,7 +38,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-opt = [
+pref = [
+    "trl",
+]
+
+all = [
+    "synvo_engine[pref]",
 ]
 
 [tool.setuptools.packages.find]
