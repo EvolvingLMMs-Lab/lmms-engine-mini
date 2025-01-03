@@ -167,7 +167,10 @@ class PreferenceCollator(DataCollatorMixin):
 
 class LLaVADPOTrainer(HFDPOTrainer):
     def _prepare_dataset(
-        self, dataset: Union[datasets.Dataset, datasets.IterableDataset], *args, **kwargs
+        self,
+        dataset: Union[datasets.Dataset, datasets.IterableDataset],
+        *args,
+        **kwargs,
     ) -> Union[datasets.Dataset, datasets.IterableDataset]:
         return dataset
 
