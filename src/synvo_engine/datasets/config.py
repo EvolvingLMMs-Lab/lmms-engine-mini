@@ -6,7 +6,7 @@ from .processor import ProcessorConfig
 
 @dataclass
 class DatasetConfig:
-    dataset_type: Literal["vision"]
+    dataset_type: Literal["vision", "vision_audio", "vision_preference"]
     dataset_format: Literal["json", "jsonl", "yaml", "hf_dataset"]
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
