@@ -1,4 +1,0 @@
-datasets:
-- json_path: /data/pufanyi/project/synvo_engine/playground/data/Evo-LMM/rlaif-v/train.jsonl
-  data_type: jsonl
-  data_folder: /data/pufanyi/project/synvo_engine/playground/data/Evo-LMM/rlaif-v
