@@ -4,9 +4,13 @@ You need to prepare a YAML file to specify the data path and data type. The YAML
 
 ```yaml
 datasets:
-  - json_path: train.json
-    data_folder: .
-    data_type: json
+- json_path: <path to the json/jsonl file>
+  data_folder: <path to the data folder>
+  data_type: json/jsonl
+- json_path: <path to the json/jsonl file>
+  data_folder: <path to the data folder>
+  data_type: json/jsonl
+...
 ```
 
 Below is an example script which may help you easier to prepare the YAML file. This script will download the dataset from the Hugging Face Hub and extract the dataset from the `tar.gz` file. You can modify the script to fit your needs.
