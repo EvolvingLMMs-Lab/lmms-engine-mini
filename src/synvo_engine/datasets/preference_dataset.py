@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 
 from ..utils.train import TrainUtilities
 from .base_dataset import BaseDataset
+from .collator import PreferenceCollator
 from .config import DatasetConfig
 from .processor import ProcessorConfig
 
@@ -70,7 +71,34 @@ class VisionPreferenceDataset(BaseDataset):
         return data_dict
 
     def __len__(self):
-        return super().__len__()
+        return len(self.data_list)
 
     def get_collator(self):
-        return super().get_collator()
+        return PreferenceCollator(self.processor)
+
+    @property
+    def modality_length(self):
+        length = []
+        if (
+            self.config.dataset_format == "json"
+            or self.config.dataset_format == "jsonl"
+            or self.config.dataset_format == "yaml"
+        ):
+            for data in self.data_list:
+                mm_data_num = 0
+                for message in data["prompt"]:
+                    for content in message["content"]:
+                        if content["type"] == "image_url":
+                            mm_data_num += 1
+                length.append(mm_data_num)
+        elif self.config.dataset_format == "hf_dataset":
+            for data in self.data_list_no_image:
+                mm_data_num = 0
+                for message in data["prompt"]:
+                    for content in message["content"]:
+                        if content["type"] == "image_url":
+                            mm_data_num += 1
+                length.append(mm_data_num)
+        else:
+            raise NotImplementedError
+        return length
