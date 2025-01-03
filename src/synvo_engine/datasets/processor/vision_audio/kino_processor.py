@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -27,8 +27,8 @@ class KinoDataProcessor:
         self,
         images: List[Image.Image],
         hf_messages,
-        audios: List[np.ndarray] = None,
-        sampling_rate: int = None,
+        audios: Optional[List[np.ndarray]] = None,
+        sampling_rate: Optional[int] = None,
         videos=None,
         add_system_prompt=True,
         **kwargs,
