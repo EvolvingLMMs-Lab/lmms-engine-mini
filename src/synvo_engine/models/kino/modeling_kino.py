@@ -1159,6 +1159,8 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             n_image_tokens = (input_ids == self.config.image_token_index).sum().item()
             n_image_features = image_features.shape[0]
 
+            print("image_tokens:", n_image_tokens, "image_features:", n_image_features)
+
             if n_image_tokens != n_image_features:
                 raise ValueError(
                     f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
