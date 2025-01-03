@@ -39,7 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pref = [
-    "trl",
+    "trl @ git+https://github.com/huggingface/trl.git",
 ]
 
 all = [
