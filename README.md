@@ -30,7 +30,7 @@ python3 -m pip install flash-attn --no-build-isolation
 Since we require the rmsnorm kernel, you need to build from source for flash-attn
 ```bash
 git clone https://github.com/Dao-AILab/flash-attention.git
-cd csrc/layer_norm
+cd flash-attention/csrc/layer_norm
 python3 -m pip install .
 # Or
 # python3 -m pip install -v .
