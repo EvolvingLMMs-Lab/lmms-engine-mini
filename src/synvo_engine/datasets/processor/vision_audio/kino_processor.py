@@ -26,10 +26,11 @@ class KinoDataProcessor:
     def process(
         self,
         images: List[Image.Image],
-        audios: List[np.ndarray],
         hf_messages,
-        sampling_rate: int,
+        audios: List[np.ndarray] = None,
+        sampling_rate: int = None,
         videos=None,
+        add_system_prompt=True,
         **kwargs,
     ):
         """
@@ -50,19 +51,30 @@ class KinoDataProcessor:
             image_inputs = self.processor.image_processor(
                 images, return_tensors="pt", **output_kwargs["images_kwargs"]
             )
-
-            image_sizes = iter(image_inputs["image_sizes"])
-            height = image_inputs["pixel_values"].shape[-2]
-            width = image_inputs["pixel_values"].shape[-1]
-            image_sizes = image_inputs["image_sizes"]
-            num_image_tokens = [
-                self.processor._get_number_of_features(
-                    image_size[0], image_size[1], height, width
-                )
-                for image_size in image_sizes
-            ]
+            # Manually handle navit here
+            if self.processor.vision_feature_select_strategy == "navit":
+                image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
+                merge_size = self.processor.image_processor.merge_size
+                num_image_tokens = [
+                    (image_size[-2] * image_size[-1]).item() // (merge_size**2)
+                    for image_size in image_inputs["image_sizes"]
+                ]
+            else:
+                image_sizes = iter(image_inputs["image_sizes"])
+                height = image_inputs["pixel_values"].shape[-2]
+                width = image_inputs["pixel_values"].shape[-1]
+                image_sizes = image_inputs["image_sizes"]
+                num_image_tokens = [
+                    self.processor._get_number_of_features(
+                        image_size[0], image_size[1], height, width
+                    )
+                    for image_size in image_sizes
+                ]
         else:
             num_image_tokens = None
+
+        if videos is not None:
+            raise NotImplementedError
 
         if audios is not None:
             audio_inputs = self.processor.audio_processor(
@@ -83,7 +95,10 @@ class KinoDataProcessor:
             num_audio_tokens = None
 
         inputs = self.get_qwen_template_labels(
-            hf_messages, num_image_tokens, num_audio_tokens
+            hf_messages,
+            num_image_tokens,
+            num_audio_tokens,
+            add_system_prompt=add_system_prompt,
         )
         if images is not None:
             inputs["pixel_values"] = image_inputs["pixel_values"]
@@ -100,6 +115,7 @@ class KinoDataProcessor:
         num_image_tokens: List[int],
         num_audio_tokens: int,
         system_message: str = "You are a helpful assistant",
+        add_system_prompt: bool = True,
     ):
         image_token_index = self.processor.tokenizer.convert_tokens_to_ids(
             self.processor.image_token
@@ -111,10 +127,11 @@ class KinoDataProcessor:
         ]
         input_id, target = [], []
         start_from = 0
-        input_id += self.processor.tokenizer.apply_chat_template(
-            [{"role": "system", "content": system_message}]
-        )
-        target += [-100] * len(input_id)
+        if add_system_prompt:
+            input_id += self.processor.tokenizer.apply_chat_template(
+                [{"role": "system", "content": system_message}]
+            )
+            target += [-100] * len(input_id)
         for message in hf_messages:
             role = message["role"]
             encode_id = self.processor.apply_chat_template([message], tokenize=True)
