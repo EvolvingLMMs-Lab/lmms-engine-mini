@@ -8,7 +8,7 @@ from ..utils import Logging
 from ..utils.train import TrainUtilities
 from .base_trainer import BaseTrainer
 from .config import TrainerConfig
-from .custom import LLaVATrainer
+from .custom import LLaVADPOTrainer, LLaVATrainer
 
 
 class Hf_Trainer(BaseTrainer):
@@ -17,15 +17,32 @@ class Hf_Trainer(BaseTrainer):
 
     def build(self):
         super().build()
+        if self.config.trainer_args_type == "dpo":
+            Logging.info("Init Reference Model for DPO ...")
+            self.ref_model = self._build_ref_model()
         self.trainer = self._build_trainer()
 
     def _build_trainer(self):
-        trainer = LLaVATrainer(
-            model=self.model,
-            args=self.config.trainer_args,
-            data_collator=self.train_dataset.get_collator(),
-            train_dataset=self.train_dataset,
-        )
+        if self.config.trainer_args_type == "sft":
+            trainer = LLaVATrainer(
+                model=self.model,
+                args=self.config.trainer_args,
+                data_collator=self.train_dataset.get_collator(),
+                train_dataset=self.train_dataset,
+            )
+        elif self.config.trainer_args_type == "dpo":
+            trainer = LLaVADPOTrainer(
+                model=self.model,
+                ref_model=self.ref_model,
+                args=self.config.trainer_args,
+                data_collator=self.train_dataset.get_collator(),
+                train_dataset=self.train_dataset,
+                processing_class=self.train_dataset.processor,
+            )
+        else:
+            raise NotImplementedError(
+                f"Unknown trainer args type: {self.config.trainer_args_type}"
+            )
         return trainer
 
     def run(self, **kwargs):
@@ -84,3 +101,12 @@ class Hf_Trainer(BaseTrainer):
             cpu_state_dict = {key: value.cpu() for key, value in state_dict.items()}
             del state_dict
             trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
+
+    def _build_ref_model(self):
+        ref_model = self._build_model()
+        parameter_names = [n for n, _ in ref_model.named_parameters()]
+        for param_name in parameter_names:
+            param = ref_model.get_parameter(param_name)
+            param.requires_grad = False
+        ref_model.eval()
+        return ref_model

@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Literal
 
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
 from ..protocol import Runnable
-from ..train import TrainerConfig, TrainerFactory, TrainingArguments
+from ..train import DPOArguments, TrainerConfig, TrainerFactory, TrainingArguments
 
 
 class Pipeline:
@@ -31,15 +31,21 @@ class Pipeline:
     def _build_trainer(self, config: dict):
         dataset_config = config.pop("dataset_config")
         dataset_config = DatasetConfig(**dataset_config)
+
         model_config = config.pop("model_config")
         model_config = ModelConfig(**model_config)
+
         trainer_type = config.pop("trainer_type")
-        trainer_args = TrainingArguments(**config)
+
+        trainer_args_type = config.pop("trainer_args_type", "sft")
+        trainer_args = self._build_training_args(config, trainer_args_type)
+
         train_config = TrainerConfig(
             dataset_config=dataset_config,
             model_config=model_config,
             trainer_type=trainer_type,
             trainer_args=trainer_args,
+            trainer_args_type=trainer_args_type,
         )
         trainer = TrainerFactory.create_trainer(train_config)
         return trainer
@@ -47,3 +53,11 @@ class Pipeline:
     def _build_pipeline(self, config: dict):
         pipeline = Pipeline(config)
         return pipeline
+
+    def _build_training_args(self, config: dict, args_type: Literal["sft", "dpo"]):
+        if args_type == "sft":
+            return TrainingArguments(**config)
+        elif args_type == "dpo":
+            return DPOArguments(**config)
+        else:
+            raise NotImplementedError

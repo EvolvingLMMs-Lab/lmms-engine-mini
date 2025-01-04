@@ -1,5 +1,5 @@
 from .accelerate_megatron_trainer import AccelerateMegatronTrainer
-from .config import TrainerConfig, TrainingArguments
+from .config import DPOArguments, TrainerConfig, TrainingArguments
 from .factory import TrainerFactory
 from .hf_trainer import Hf_Trainer
 
@@ -9,4 +9,5 @@ __all__ = [
     "AccelerateMegatronTrainer",
     "Hf_Trainer",
     "TrainingArguments",
+    "DPOArguments",
 ]

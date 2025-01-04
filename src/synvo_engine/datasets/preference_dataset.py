@@ -1,55 +1,57 @@
-import json
 import os
-from copy import deepcopy
 from typing import Dict
 
-import jsonlines
 import torch
-import yaml
-from datasets import Dataset as HFDataset
-from datasets import Image as HFImageFeature
-from datasets import Sequence, load_dataset
 from PIL import Image
 from torch.utils.data import Dataset
-from transformers import AutoProcessor
 
-from ..utils import Logging
-from ..utils.data_utils import DataUtilities
 from ..utils.train import TrainUtilities
 from .base_dataset import BaseDataset
-from .collator import VisionCollator
+from .collator import PreferenceCollator
 from .config import DatasetConfig
-from .processor import ProcessorConfig, ProcessorFactory
+from .processor import ProcessorConfig
 
 
-class VisionSFTDataset(BaseDataset):
+class VisionPreferenceDataset(BaseDataset):
+    def load_from_hf(self, data):
+        raise NotImplementedError
+
     def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
         # TODO Write a protocol for vision openai input
         images_list = []
-        messages = data["messages"]
-        for message in messages:
+        prompt_messages = data["prompt"]
+        chosen_messages = data["chosen"]
+        rejected_messages = data["rejected"]
+        for message in prompt_messages:
             for content in message["content"]:
                 if content["type"] == "image_url":
                     images_list.append(content["image_url"]["url"])
 
-        hf_messages = TrainUtilities.convert_open_to_hf(messages)
+        hf_messages_prompt = TrainUtilities.convert_open_to_hf(prompt_messages)
+        hf_messages_chosen = TrainUtilities.convert_open_to_hf(chosen_messages)
+        hf_messages_reject = TrainUtilities.convert_open_to_hf(rejected_messages)
+        # TODO
+        # Now assume images are all in prompt
         if data_folder is not None:
             images = [
                 Image.open(os.path.join(data_folder, image)) for image in images_list
             ]
         else:
             images = [Image.open(image) for image in images_list]
-        inputs = self.processor.process(images=images, hf_messages=hf_messages)
-        return inputs
-
-    def load_from_hf(self, data) -> Dict[str, torch.Tensor]:
-        messages = data["messages"]
-        hf_messages = TrainUtilities.convert_open_to_hf(messages)
-        if isinstance(data["image"], list):
-            images = data["image"]
-        else:
-            images = [data["image"]]
-        inputs = self.processor.process(images=images, hf_messages=hf_messages)
+        inputs = self.processor.process(images=images, hf_messages=hf_messages_prompt)
+        # Cautions:
+        # Only activate for Kino processor now
+        # May need to refactor or added for llava
+        chosen_inputs = self.processor.process(
+            images=None, hf_messages=hf_messages_chosen, add_system_prompt=False
+        )
+        reject_inputs = self.processor.process(
+            images=None, hf_messages=hf_messages_reject, add_system_prompt=False
+        )
+        inputs["prompt_input_ids"] = inputs.pop("input_ids")
+        inputs.pop("labels")
+        inputs["chosen_input_ids"] = chosen_inputs["input_ids"]
+        inputs["rejected_input_ids"] = reject_inputs["input_ids"]
         return inputs
 
     def __getitem__(self, index):
@@ -72,7 +74,7 @@ class VisionSFTDataset(BaseDataset):
         return len(self.data_list)
 
     def get_collator(self):
-        return VisionCollator(self.processor)
+        return PreferenceCollator(self.processor)
 
     @property
     def modality_length(self):
@@ -84,7 +86,7 @@ class VisionSFTDataset(BaseDataset):
         ):
             for data in self.data_list:
                 mm_data_num = 0
-                for message in data["messages"]:
+                for message in data["prompt"]:
                     for content in message["content"]:
                         if content["type"] == "image_url":
                             mm_data_num += 1
@@ -92,7 +94,7 @@ class VisionSFTDataset(BaseDataset):
         elif self.config.dataset_format == "hf_dataset":
             for data in self.data_list_no_image:
                 mm_data_num = 0
-                for message in data["messages"]:
+                for message in data["prompt"]:
                     for content in message["content"]:
                         if content["type"] == "image_url":
                             mm_data_num += 1

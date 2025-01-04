@@ -38,7 +38,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-opt = [
+pref = [
+    "trl @ git+https://github.com/huggingface/trl.git",
+]
+
+all = [
+    "synvo_engine[pref]",
 ]
 
 [tool.setuptools.packages.find]
