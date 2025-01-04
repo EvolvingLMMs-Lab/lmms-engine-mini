@@ -23,6 +23,13 @@ class KinoDataProcessor:
         processor = KinoProcessor.from_pretrained(self.config.processor_name)
         return processor
 
+    def save_pretrained(self, save_directory: str):
+        if not hasattr(self, "processor"):
+            raise ValueError(
+                "Processor has not been built yet. Please call build() first."
+            )
+        self.processor.save_pretrained(save_directory)
+
     def process(
         self,
         images: List[Image.Image],
