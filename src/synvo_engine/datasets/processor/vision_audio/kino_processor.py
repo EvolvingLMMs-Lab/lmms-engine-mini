@@ -60,10 +60,9 @@ class KinoDataProcessor:
                     for image_size in image_inputs["image_sizes"]
                 ]
             else:
-                image_sizes = iter(image_inputs["image_sizes"])
+                image_sizes = iter(image_inputs["image_sizes"].tolist())
                 height = image_inputs["pixel_values"].shape[-2]
                 width = image_inputs["pixel_values"].shape[-1]
-                image_sizes = image_inputs["image_sizes"]
                 num_image_tokens = [
                     self.processor._get_number_of_features(
                         image_size[0], image_size[1], height, width
