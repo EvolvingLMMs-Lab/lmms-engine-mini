@@ -79,6 +79,8 @@ class LLaVADataProcessor:
             if role in ["user", "system"]:
                 target += [-100] * len(encode_id)
             else:
+                # Adopted from llava-ov that mask out the assistant
+                encode_id[:3] = [-100] * 3
                 target += encode_id
 
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
