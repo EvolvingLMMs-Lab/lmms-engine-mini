@@ -1,3 +1,5 @@
+import os
+import pathlib
 import unittest
 
 from torch.utils.data import DataLoader
@@ -5,13 +7,16 @@ from torch.utils.data import DataLoader
 from synvo_engine.datasets import DatasetConfig, DatasetFactory
 from synvo_engine.utils.train import TrainUtilities
 
+current_dir = pathlib.Path().resolve()
+data_folder = current_dir.parent.parent / "examples" / "sample_json_data"
+
 
 class TestVisionDataset(unittest.TestCase):
     def test_sft_dataset(self):
         config = {
             "dataset_type": "vision",
             "dataset_format": "json",
-            "dataset_path": "./examples/sample_json_data/synvo_engine.json",
+            "dataset_path": os.path.join(str(data_folder), "synvo_engine.json"),
             "chat_template": "qwen",
             "processor_config": {
                 "processor_name": "Qwen/Qwen2-VL-7B-Instruct",
