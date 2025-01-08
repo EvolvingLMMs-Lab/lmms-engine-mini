@@ -52,34 +52,3 @@ class VisionAudioSFTDataset(VisionSFTDataset):
 
     def load_from_hf(self, data) -> Dict[str, torch.Tensor]:
         return super().load_from_hf(data)
-
-    @property
-    def modality_length(self):
-        length = []
-        if (
-            self.config.dataset_format == "json"
-            or self.config.dataset_format == "jsonl"
-            or self.config.dataset_format == "yaml"
-        ):
-            for data in self.data_list:
-                mm_data_num = 0
-                for message in data["messages"]:
-                    for content in message["content"]:
-                        if content["type"] == "image_url":
-                            mm_data_num += 1
-                        elif content["type"] == "audio_url":
-                            mm_data_num += 1
-                length.append(mm_data_num)
-        elif self.config.dataset_format == "hf_dataset":
-            for data in self.data_list_no_image:
-                mm_data_num = 0
-                for message in data["messages"]:
-                    for content in message["content"]:
-                        if content["type"] == "image_url":
-                            mm_data_num += 1
-                        elif content["type"] == "audio_url":
-                            mm_data_num += 1
-                length.append(mm_data_num)
-        else:
-            raise NotImplementedError
-        return length

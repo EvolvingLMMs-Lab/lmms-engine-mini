@@ -24,6 +24,8 @@ class VisionCollator:
         return input_ids
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        if isinstance(instances[0], list):
+            instances = [inst for instance in instances for inst in instance]
         inputs = collections.defaultdict(list)
         for instance in instances:
             for key, values in instance.items():
