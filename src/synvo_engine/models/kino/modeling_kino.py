@@ -473,6 +473,7 @@ class Qwen2AudioEncoder(Qwen2AudioPreTrainedModel):
                         attention_mask,
                         (head_mask[idx] if head_mask is not None else None),
                         output_attentions,
+                        use_reentrant=False,
                     )
                 else:
                     layer_outputs = encoder_layer(
