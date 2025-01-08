@@ -44,7 +44,17 @@ class BaseDataset(Dataset):
             else self.data_list_no_image
         )
         if self.config.packing:
-            self.packing_index = self._pack_by_first_fit(self.data_lengths)
+            if self.config.packing_strategy is None:
+                raise ValueError("Packing strategy is not specified.")
+            if self.config.packing_strategy == "first_fit":
+                self.packing_index = self._pack_by_first_fit(self.data_lengths)
+            elif "window" in self.config.packing_strategy:
+                window_size = int(self.config.packing_strategy.split("_")[1])
+                self.packing_index = self._pack_by_window(
+                    self.data_lengths, window_size
+                )
+            else:
+                raise NotImplementedError
             Logging.info(
                 f"Before packing : {len(self.data_list)}, After packing : {len(self.packing_index)}"
             )
@@ -105,6 +115,64 @@ class BaseDataset(Dataset):
 
         if len(current_list) > 0:
             result.append(current_list)
+
+        # assert to make sure no indices were missing
+        assert sum([len(indices) for indices in result]) == len(lengths)
+        return result
+
+    def _pack_by_window(
+        self,
+        lengths: List[int],
+        window_size: int = 100,
+        control_threshold: float = 1,
+        max_size: int = -1,
+    ):
+        max_length = max(lengths)
+        Logging.info(f"Packing inputs...pack length:{max_length}")
+
+        result = []
+        current_concatenated_length = 0
+        current_list = []
+        i = 0
+        cur_window = {}
+
+        next_window = {}
+        for k in range(window_size):
+            next_window[f"{k}"] = lengths[k]
+        while i < len(lengths):
+            cur_window = next_window
+            next_window = {}
+            for j in cur_window.keys():
+                cur_length = cur_window[j]
+                if (
+                    cur_length + current_concatenated_length
+                ) * control_threshold <= max_length and (
+                    max_size == -1 or len(current_list) < max_size
+                ):
+                    current_concatenated_length += cur_length
+                    current_list.append(int(j))
+                else:
+                    next_window[j] = cur_window[j]
+
+            if current_list == []:
+                if i != len(lengths) - 1:
+                    current_list.append(int(next(iter(next_window))))
+                    next_window.pop(next(iter(next_window)))
+                    cur_window.pop(next(iter(next_window)))
+                else:
+                    i += 1
+                    continue
+
+            for k in range(min(len(current_list), len(lengths) - i - 1)):
+                if k + i + window_size < len(lengths):
+                    index = k + i + window_size
+                    next_window[f"{index}"] = lengths[index]
+            i += min(len(current_list), len(lengths) - i)
+
+            result.append(current_list)
+
+            current_concatenated_length = 0
+            current_list = []
 
         # assert to make sure no indices were missing
         assert sum([len(indices) for indices in result]) == len(lengths)

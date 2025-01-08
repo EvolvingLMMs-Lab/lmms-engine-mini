@@ -12,3 +12,4 @@ class DatasetConfig:
     processor_config: Union[dict, ProcessorConfig]
     chat_template: Literal["qwen"] = "qwen"
     packing: Optional[bool] = False
+    packing_strategy: Optional[str] = None
