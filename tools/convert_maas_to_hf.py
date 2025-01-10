@@ -83,6 +83,7 @@ def load_original_state_dict(model_id):
 
 def convert_state_dict_to_hf(state_dict):
     new_state_dict = {}
+    # total_discrepancy = 0
     for key, value in state_dict.items():
         if key.endswith(".inv_freq"):
             continue
@@ -90,7 +91,12 @@ def convert_state_dict_to_hf(state_dict):
             if key_to_modify in key:
                 key = key.replace(key_to_modify, new_key)
 
-        new_state_dict[key] = value.to(torch.float16)
+        # new_state_dict[key] = value.to(torch.float16)
+        new_state_dict[key] = value
+        # discrepancy = (new_state_dict[key] - value).sum().item()
+        # total_discrepancy += discrepancy
+        # print(f"Discrepancy on {key} : {discrepancy}")
+    # print(f"Total Discrepancy : {total_discrepancy}")
     return new_state_dict
 
 
