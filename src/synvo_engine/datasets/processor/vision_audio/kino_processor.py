@@ -76,6 +76,20 @@ class KinoDataProcessor:
                     )
                     for image_size in image_sizes
                 ]
+                # FIXME Hack max patches to 5
+                max_patches = 5
+                zero_padding = torch.zeros(
+                    len(images),
+                    max_patches - image_inputs["pixel_values"].shape[1],
+                    3,
+                    height,
+                    width,
+                    dtype=image_inputs["pixel_values"].dtype,
+                    device=image_inputs["pixel_values"].device,
+                )
+                image_inputs["pixel_values"] = torch.concat(
+                    [image_inputs["pixel_values"], zero_padding], dim=1
+                )
         else:
             num_image_tokens = None
 
