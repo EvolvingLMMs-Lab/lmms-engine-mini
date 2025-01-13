@@ -113,7 +113,7 @@ if __name__ == "__main__":
     if args.modalities == "image":
         for item in dataset:
             image_path = os.path.join(
-                args.output_folder, "images", item[index_column] + ".jpg"
+                args.output_folder, "image", item[index_column] + ".jpg"
             )
             if item[media_column] is not None:
                 item[media_column].convert("RGB").save(image_path)
