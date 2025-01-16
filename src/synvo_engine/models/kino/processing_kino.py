@@ -243,10 +243,7 @@ class KinoProcessor(ProcessorMixin):
             # Computes the output length of the convolutional layers and the output length of the audio encoder
             input_lengths = (audio_inputs["audio_attention_mask"].sum(-1) - 1) // 2 + 1
             num_audio_tokens = (input_lengths - 2) // 2 + 1
-            text = [
-                sample.replace(self.audio_token, self.audio_token * num_audio_token)
-                for sample, num_audio_token in zip(text, num_audio_tokens)
-            ]
+            text = self.expand_audio_tokens(text, num_audio_tokens, self.audio_token)
 
         text_inputs = self.tokenizer(text, **output_kwargs["text_kwargs"])
         return BatchFeature(
@@ -302,6 +299,27 @@ class KinoProcessor(ProcessorMixin):
                     special_token, "<placeholder>" * num_image_token, 1
                 )
                 current_img_idx += 1
+            prompt_strings.append(sample)
+        text = [
+            sample.replace("<placeholder>", special_token) for sample in prompt_strings
+        ]
+        return text
+
+    def expand_audio_tokens(
+        self,
+        text: List[TextInput],
+        num_audio_tokens: List[int],
+        special_token: str,
+    ):
+        prompt_strings = []
+        current_audio_idx = 0
+        for sample in text:
+            while special_token in sample:
+                num_audio_token = num_audio_tokens[current_audio_idx]
+                sample = sample.replace(
+                    special_token, "<placeholder>" * num_audio_token, 1
+                )
+                current_audio_idx += 1
             prompt_strings.append(sample)
         text = [
             sample.replace("<placeholder>", special_token) for sample in prompt_strings
