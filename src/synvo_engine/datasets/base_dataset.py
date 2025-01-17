@@ -1,7 +1,10 @@
+import os
 from abc import abstractmethod
 from copy import deepcopy
 from typing import Dict, List
 
+import librosa
+import numpy as np
 from datasets import Sequence, load_dataset
 from PIL import Image
 from torch.utils.data import Dataset
@@ -238,6 +241,19 @@ class BaseDataset(Dataset):
         else:
             raise NotImplementedError
         return data_dict_list
+
+    def load_image(self, image_path: str, data_folder=None) -> Image.Image:
+        if data_folder is not None:
+            image_path = os.path.join(data_folder, image_path)
+
+        image = Image.open(image_path)
+        return image
+
+    def load_audio(self, audio_path: str, sr: int, data_folder=None) -> np.ndarray:
+        if data_folder is not None:
+            audio_path = os.path.join(data_folder, audio_path)
+        audio = librosa.load(audio_path, sr=sr)[0]
+        return audio
 
     @abstractmethod
     def load_from_json(self, data, data_folder=None):

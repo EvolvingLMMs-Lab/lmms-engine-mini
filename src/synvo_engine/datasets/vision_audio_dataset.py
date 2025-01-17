@@ -11,33 +11,27 @@ from .vision_dataset import VisionSFTDataset
 
 class VisionAudioSFTDataset(VisionSFTDataset):
     def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
-        images_list = []
-        audios_list = []
+        images = []
+        audios = []
         messages = data["messages"]
         for message in messages:
             for content in message["content"]:
                 if content["type"] == "image_url":
-                    images_list.append(content["image_url"]["url"])
+                    images.append(
+                        self.load_image(
+                            content["image_url"]["url"], data_folder=data_folder
+                        )
+                    )
                 elif content["type"] == "audio_url":
-                    audios_list.append(content["audio_url"]["url"])
+                    audios.append(
+                        self.load_audio(
+                            content["audio_url"]["url"],
+                            sr=self.processor.sampling_rate,
+                            data_folder=data_folder,
+                        )
+                    )
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
-        if data_folder is not None:
-            images = [
-                Image.open(os.path.join(data_folder, image)) for image in images_list
-            ]
-            audios = [
-                librosa.load(
-                    os.path.join(data_folder, audio), sr=self.processor.sampling_rate
-                )[0]
-                for audio in audios_list
-            ]
-        else:
-            images = [Image.open(image) for image in images_list]
-            audios = [
-                librosa.load(audio, sr=self.processor.sampling_rate)[0]
-                for audio in audios_list
-            ]
         if len(images) == 0:
             images = None
         if len(audios) == 0:
