@@ -83,6 +83,7 @@ def load_original_state_dict(model_id):
 
 def convert_state_dict_to_hf(state_dict):
     new_state_dict = {}
+    # total_discrepancy = 0
     for key, value in state_dict.items():
         if key.endswith(".inv_freq"):
             continue
@@ -90,7 +91,12 @@ def convert_state_dict_to_hf(state_dict):
             if key_to_modify in key:
                 key = key.replace(key_to_modify, new_key)
 
-        new_state_dict[key] = value.to(torch.float16)
+        # new_state_dict[key] = value.to(torch.float16)
+        new_state_dict[key] = value
+        # discrepancy = (new_state_dict[key] - value).sum().item()
+        # total_discrepancy += discrepancy
+        # print(f"Discrepancy on {key} : {discrepancy}")
+    # print(f"Total Discrepancy : {total_discrepancy}")
     return new_state_dict
 
 
@@ -101,7 +107,7 @@ def load_image():
 
 
 def convert_llava_to_hf(
-    model_id, pytorch_dump_folder_path, push_to_hub=False, with_out_init=False
+    model_id, pytorch_dump_folder_path, repo_id, push_to_hub=False, with_out_init=False
 ):
     if not with_out_init:
         # load original config
@@ -159,8 +165,8 @@ def convert_llava_to_hf(
             model = KinoForConditionalGeneration(config)
 
         # load original state dict
-        state_dict = load_original_state_dict(model_id)
-        state_dict = convert_state_dict_to_hf(state_dict)
+        origin_state_dict = load_original_state_dict(model_id)
+        state_dict = convert_state_dict_to_hf(origin_state_dict)
         audio_model = Qwen2AudioForConditionalGeneration.from_pretrained(
             "Qwen/Qwen2-Audio-7B-Instruct",
             torch_dtype=torch.float16,
@@ -223,13 +229,15 @@ def convert_llava_to_hf(
             dim=0,
         )
 
-        # print(f"Saving model and processor for {model_id} to {pytorch_dump_folder_path}")
-        # Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
-        # model.save_pretrained(pytorch_dump_folder_path)
-        # processor.save_pretrained(pytorch_dump_folder_path)
-        print("Init Success, Push to Hub...")
-        model.push_to_hub(pytorch_dump_folder_path, private=True)
-        processor.push_to_hub(pytorch_dump_folder_path, private=True)
+        print(
+            f"Saving model and processor for {model_id} to {pytorch_dump_folder_path}"
+        )
+        Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
+        model.save_pretrained(pytorch_dump_folder_path)
+        processor.save_pretrained(pytorch_dump_folder_path)
+        # print("Init Success, Push to Hub...")
+        # model.push_to_hub(pytorch_dump_folder_path, private=True)
+        # processor.push_to_hub(pytorch_dump_folder_path, private=True)
 
         # Make space so we can load the model properly now.
         del state_dict
@@ -262,33 +270,37 @@ def convert_llava_to_hf(
 
     print("Generated text:", repr(generated_text))
 
+    if push_to_hub:
+        model.push_to_hub(repo_id)
+        processor.push_to_hub(repo_id)
+
     # verify batched generation
-    print("Batched generation...")
-    url = "http://images.cocodataset.org/val2017/000000039769.jpg"
-    cats_image = Image.open(requests.get(url, stream=True).raw)
+    # print("Batched generation...")
+    # url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+    # cats_image = Image.open(requests.get(url, stream=True).raw)
 
-    inputs = processor(
-        images=[image, cats_image],
-        text=[prompt, prompt],
-        padding=True,
-        return_tensors="pt",
-    )
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    # inputs = processor(
+    # images=[image, cats_image],
+    # text=[prompt, prompt],
+    # padding=True,
+    # return_tensors="pt",
+    # )
+    # inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    for k, v in inputs.items():
-        print(k, v.shape)
+    # for k, v in inputs.items():
+    # print(k, v.shape)
 
-    print("Image sizes:", inputs["image_sizes"])
+    # print("Image sizes:", inputs["image_sizes"])
 
-    print("Batched generation...")
-    output_ids = model.generate(
-        **inputs,
-        max_new_tokens=1024,
-        use_cache=True,
-    )
+    # print("Batched generation...")
+    # output_ids = model.generate(
+    # **inputs,
+    # max_new_tokens=1024,
+    # use_cache=True,
+    # )
 
-    outputs = processor.batch_decode(output_ids, skip_special_tokens=False)
-    print(outputs)
+    # outputs = processor.batch_decode(output_ids, skip_special_tokens=False)
+    # print(outputs)
 
 
 if __name__ == "__main__":
@@ -306,6 +318,11 @@ if __name__ == "__main__":
         help="Path to the output PyTorch model directory.",
     )
     parser.add_argument(
+        "--repo_id",
+        type=str,
+        help="The repo id to push the mode",
+    )
+    parser.add_argument(
         "--push_to_hub",
         action="store_true",
         help="Whether or not to push the converted model to the 🤗 hub.",
@@ -320,6 +337,7 @@ if __name__ == "__main__":
     convert_llava_to_hf(
         args.model_id,
         args.pytorch_dump_folder_path,
+        args.repo_id,
         args.push_to_hub,
         args.with_out_init,
     )

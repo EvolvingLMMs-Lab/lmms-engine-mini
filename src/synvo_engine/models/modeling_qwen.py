@@ -1512,6 +1512,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                         attention_mask,
                         position_ids,
                         None,
+                        use_reentrant=False,
                     )
                 else:
                     layer_outputs = self._gradient_checkpointing_func(
@@ -1522,6 +1523,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
                         past_key_values,
                         output_attentions,
                         use_cache,
+                        use_reentrant=False,
                     )
             else:
                 if use_rmpad:

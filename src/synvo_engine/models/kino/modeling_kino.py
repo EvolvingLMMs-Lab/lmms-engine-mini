@@ -473,6 +473,7 @@ class Qwen2AudioEncoder(Qwen2AudioPreTrainedModel):
                         attention_mask,
                         (head_mask[idx] if head_mask is not None else None),
                         output_attentions,
+                        use_reentrant=False,
                     )
                 else:
                     layer_outputs = encoder_layer(
@@ -779,7 +780,10 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             )
 
         self.vocab_size = config.text_config.vocab_size
-        if self.config.use_rmpad:
+        self.use_custom_qwen = (
+            self.config.use_rmpad or self.config.text_config.model_type == "qwen2"
+        ) and self.config._attn_implementation == "flash_attention_2"
+        if self.use_custom_qwen:
             self.language_model = Qwen2ForCausalLM(config.text_config)
         else:
             self.language_model = AutoModelForCausalLM.from_config(config.text_config)
@@ -1289,7 +1293,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             )
 
         flops = self.calc_gpt_flops(attention_mask)
-        if use_rmpad:
+        if self.use_custom_qwen:
             outputs = self.language_model(
                 attention_mask=attention_mask,
                 position_ids=position_ids,
@@ -1316,7 +1320,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
                 num_logits_to_keep=num_logits_to_keep,
             )
 
-        if use_rmpad:
+        if self.use_custom_qwen:
             loss = outputs.loss
             logits = outputs.logits
         else:
@@ -1347,7 +1351,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
                 )
 
         if not return_dict:
-            if not use_rmpad:
+            if not use_rmpad or not self.config.text_config.model_type == "qwen2":
                 output = (logits,) + outputs[1:]
                 return (loss,) + output if loss is not None else output
             else:

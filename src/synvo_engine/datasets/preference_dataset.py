@@ -54,51 +54,5 @@ class VisionPreferenceDataset(BaseDataset):
         inputs["rejected_input_ids"] = reject_inputs["input_ids"]
         return inputs
 
-    def __getitem__(self, index):
-        if (
-            self.config.dataset_format == "json"
-            or self.config.dataset_format == "jsonl"
-        ):
-            data_dict = self.load_from_json(self.data_list[index])
-        elif self.config.dataset_format == "yaml":
-            data_dict = self.load_from_json(
-                self.data_list[index], self.data_folder[index]
-            )
-        elif self.config.dataset_format == "hf_dataset":
-            data_dict = self.load_from_hf(self.data_list[index])
-        else:
-            raise NotImplementedError
-        return data_dict
-
-    def __len__(self):
-        return len(self.data_list)
-
     def get_collator(self):
         return PreferenceCollator(self.processor)
-
-    @property
-    def modality_length(self):
-        length = []
-        if (
-            self.config.dataset_format == "json"
-            or self.config.dataset_format == "jsonl"
-            or self.config.dataset_format == "yaml"
-        ):
-            for data in self.data_list:
-                mm_data_num = 0
-                for message in data["prompt"]:
-                    for content in message["content"]:
-                        if content["type"] == "image_url":
-                            mm_data_num += 1
-                length.append(mm_data_num)
-        elif self.config.dataset_format == "hf_dataset":
-            for data in self.data_list_no_image:
-                mm_data_num = 0
-                for message in data["prompt"]:
-                    for content in message["content"]:
-                        if content["type"] == "image_url":
-                            mm_data_num += 1
-                length.append(mm_data_num)
-        else:
-            raise NotImplementedError
-        return length

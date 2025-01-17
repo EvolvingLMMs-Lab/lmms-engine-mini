@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal, Optional, Union
 
 from .processor import ProcessorConfig
 
@@ -11,3 +11,6 @@ class DatasetConfig:
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
     chat_template: Literal["qwen"] = "qwen"
+    packing: Optional[bool] = False
+    packing_strategy: Optional[str] = None
+    packing_length: Optional[int] = 32000

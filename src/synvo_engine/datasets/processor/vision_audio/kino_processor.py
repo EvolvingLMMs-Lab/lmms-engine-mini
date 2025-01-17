@@ -76,6 +76,20 @@ class KinoDataProcessor:
                     )
                     for image_size in image_sizes
                 ]
+                # FIXME Hack max patches to 5
+                max_patches = 5
+                zero_padding = torch.zeros(
+                    len(images),
+                    max_patches - image_inputs["pixel_values"].shape[1],
+                    3,
+                    height,
+                    width,
+                    dtype=image_inputs["pixel_values"].dtype,
+                    device=image_inputs["pixel_values"].device,
+                )
+                image_inputs["pixel_values"] = torch.concat(
+                    [image_inputs["pixel_values"], zero_padding], dim=1
+                )
         else:
             num_image_tokens = None
 
@@ -119,7 +133,7 @@ class KinoDataProcessor:
         self,
         hf_messages,
         num_image_tokens: List[int],
-        num_audio_tokens: int,
+        num_audio_tokens: List[int],
         system_message: str = "You are a helpful assistant",
         add_system_prompt: bool = True,
     ):
@@ -202,7 +216,7 @@ class KinoDataProcessor:
     def _expand_encode_id_audio_tokens(
         self,
         encode_id: List[int],
-        audio_token_num: int,
+        audio_token_num: List[int],
     ):
         audio_pos = [i for i, x in enumerate(encode_id) if x == self.audio_token_id]
         expanded_encode_id = []
@@ -211,7 +225,7 @@ class KinoDataProcessor:
             # Before image pos, no expand
             expanded_encode_id.extend(encode_id[prev:pos])
             # Image pos, expand
-            expanded_encode_id.extend([self.audio_token_id] * audio_token_num)
+            expanded_encode_id.extend([self.audio_token_id] * audio_token_num[idx])
             prev = pos + 1
 
             if idx == len(audio_pos) - 1:
