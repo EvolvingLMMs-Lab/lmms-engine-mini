@@ -13,3 +13,4 @@ class DatasetConfig:
     chat_template: Literal["qwen"] = "qwen"
     packing: Optional[bool] = False
     packing_strategy: Optional[str] = None
+    packing_length: Optional[int] = 32000

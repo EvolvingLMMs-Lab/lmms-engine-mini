@@ -49,12 +49,15 @@ class BaseDataset(Dataset):
         if self.config.packing:
             if self.config.packing_strategy is None:
                 raise ValueError("Packing strategy is not specified.")
+            packing_length = self.config.packing_length
             if self.config.packing_strategy == "first_fit":
-                self.packing_index = self._pack_by_first_fit(self.data_lengths)
+                self.packing_index = self._pack_by_first_fit(
+                    self.data_lengths, packing_length
+                )
             elif "window" in self.config.packing_strategy:
                 window_size = int(self.config.packing_strategy.split("_")[1])
                 self.packing_index = self._pack_by_window(
-                    self.data_lengths, window_size
+                    self.data_lengths, packing_length, window_size
                 )
             else:
                 raise NotImplementedError
@@ -98,8 +101,8 @@ class BaseDataset(Dataset):
             lengths.append(cur_len)
         return lengths
 
-    def _pack_by_first_fit(self, lengths: List[int]):
-        max_length = max(lengths)
+    def _pack_by_first_fit(self, lengths: List[int], packing_length: int):
+        max_length = packing_length
         Logging.info(f"Packing inputs...pack max length: {max_length}")
 
         result = []
@@ -126,11 +129,12 @@ class BaseDataset(Dataset):
     def _pack_by_window(
         self,
         lengths: List[int],
+        packing_length: int,
         window_size: int = 100,
         control_threshold: float = 1,
         max_size: int = -1,
     ):
-        max_length = max(lengths)
+        max_length = packing_length
         Logging.info(f"Packing inputs...pack length:{max_length}")
 
         result = []
