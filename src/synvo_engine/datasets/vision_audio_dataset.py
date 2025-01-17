@@ -8,28 +8,51 @@ from PIL import Image
 from ..utils.train import TrainUtilities
 from .vision_dataset import VisionSFTDataset
 
+MAX_AUDIO_LENGTH = 30
+
 
 class VisionAudioSFTDataset(VisionSFTDataset):
     def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
         images = []
         audios = []
         messages = data["messages"]
+        new_messages = []
         for message in messages:
-            for content in message["content"]:
+            new_content = []
+            for idx, content in enumerate(message["content"]):
                 if content["type"] == "image_url":
                     images.append(
                         self.load_image(
                             content["image_url"]["url"], data_folder=data_folder
                         )
                     )
+                    new_content.append(content)
                 elif content["type"] == "audio_url":
-                    audios.append(
-                        self.load_audio(
-                            content["audio_url"]["url"],
-                            sr=self.processor.sampling_rate,
-                            data_folder=data_folder,
-                        )
+                    loaded_audios = self.load_audio(
+                        content["audio_url"]["url"],
+                        sr=self.processor.sampling_rate,
+                        data_folder=data_folder,
                     )
+                    audio_splits = []
+                    # Split the loaded audio to 30s chunks and extend the messages content
+                    for i in range(
+                        0,
+                        len(loaded_audios),
+                        MAX_AUDIO_LENGTH * self.processor.sampling_rate,
+                    ):
+                        audio_splits.append(
+                            loaded_audios[
+                                i : i + MAX_AUDIO_LENGTH * self.processor.sampling_rate
+                            ]
+                        )
+                    for _ in range(len(audio_splits)):
+                        new_content.append(content)
+                    audios.extend(audio_splits)
+                else:
+                    new_content.append(content)
+            message["content"] = new_content
+            new_messages.append(message)
+        messages = new_messages
 
         hf_messages = TrainUtilities.convert_open_to_hf(messages)
         if len(images) == 0:
