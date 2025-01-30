@@ -200,12 +200,18 @@ class KinoProcessor(ProcessorMixin):
 
         if videos is not None:
             video_inputs = self.video_processor(
-                videos, **output_kwargs["videos_kwargs"]
+                images=None, videos=videos, **output_kwargs["videos_kwargs"]
             )
 
             if self.vision_feature_select_strategy == "navit":
-                raise NotImplementedError(
-                    "Navit strategy haven't implemented for video yet."
+                video_grid_thw = video_inputs["video_grid_thw"]
+                video_inputs["image_sizes_videos"] = video_inputs.pop("video_grid_thw")
+                merge_size = self.video_processor.merge_size
+                num_image_tokens = [
+                    grid_thw.prod() // (merge_size**2) for grid_thw in video_grid_thw
+                ]
+                text = self.expand_image_tokens_navit(
+                    text, num_image_tokens, self.video_token
                 )
             else:
                 one_video = to_numpy_array(video_inputs["pixel_values_videos"][0])
