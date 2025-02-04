@@ -74,7 +74,12 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
     tokenizer_class = ("Qwen2Tokenizer", "Qwen2TokenizerFast")
 
     def __init__(
-        self, image_processor=None, tokenizer=None, chat_template=None, **kwargs
+        self,
+        image_processor=None,
+        audio_processor=None,
+        tokenizer=None,
+        chat_template=None,
+        **kwargs,
     ):
         self.image_token = (
             "<|image_pad|>"
@@ -91,7 +96,9 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
             if not hasattr(tokenizer, "audio_token")
             else tokenizer.audio_token
         )
-        super().__init__(image_processor, tokenizer, chat_template=chat_template)
+        super().__init__(
+            image_processor, audio_processor, tokenizer, chat_template=chat_template
+        )
 
     def __call__(
         self,

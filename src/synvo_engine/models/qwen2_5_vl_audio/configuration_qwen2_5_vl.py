@@ -208,6 +208,9 @@ class KinoQwen2_5_VLConfig(PretrainedConfig):
         vision_config=None,
         audio_config=None,
         rope_scaling=None,
+        image_token_id=151655,
+        video_token_id=151656,
+        audio_token_id=151657,
         **kwargs,
     ):
         if isinstance(vision_config, dict):
@@ -269,6 +272,10 @@ class KinoQwen2_5_VLConfig(PretrainedConfig):
                 self.rope_scaling["type"] = "default"
             self.rope_scaling["rope_type"] = self.rope_scaling["type"]
         rope_config_validation(self, ignore_keys={"mrope_section"})
+
+        self.image_token_id = image_token_id
+        self.video_token_id = video_token_id
+        self.audio_token_id = audio_token_id
 
         super().__init__(tie_word_embeddings=tie_word_embeddings, **kwargs)
 

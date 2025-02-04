@@ -1103,6 +1103,18 @@ QWEN2_5_VL_ATTENTION_CLASSES = {
 }
 
 
+class AudioMultiModalProjector(nn.Module):
+    def __init__(self, config: KinoQwen2_5_VLConfig):
+        super().__init__()
+        self.linear = nn.Linear(
+            config.audio_config.d_model, config.hidden_size, bias=True
+        )
+
+    def forward(self, audio_features):
+        hidden_states = self.linear(audio_features)
+        return hidden_states
+
+
 class Qwen2_5_VLDecoderLayer(nn.Module):
     def __init__(self, config: KinoQwen2_5_VLConfig, layer_idx: int):
         super().__init__()
@@ -1670,6 +1682,7 @@ class KinoQwen2_5_VLForConditionalGeneration(
             config.vision_config
         )
         self.audio_tower = Qwen2AudioEncoder(config.audio_config)
+        self.audio_modal_projector = AudioMultiModalProjector(config)
         self.model = Qwen2_5_VLModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)

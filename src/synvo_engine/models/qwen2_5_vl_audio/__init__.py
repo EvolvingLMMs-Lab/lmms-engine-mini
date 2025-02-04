@@ -11,3 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .configuration_qwen2_5_vl import KinoQwen2_5_VLConfig
+from .modeling_qwen2_5_vl import KinoQwen2_5_VLForConditionalGeneration
+from .processing_qwen2_5_vl import KinoQwen2_5_VLProcessor
+
+__all__ = [
+    "KinoQwen2_5_VLConfig",
+    "KinoQwen2_5_VLProcessor",
+    "KinoQwen2_5_VLForConditionalGeneration",
+]
