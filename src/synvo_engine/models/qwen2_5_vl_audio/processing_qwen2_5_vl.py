@@ -75,6 +75,9 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
             if not hasattr(tokenizer, "audio_token")
             else tokenizer.audio_token
         )
+        if chat_template is None:
+            chat_template = self.default_chat_template
+
         super().__init__(
             image_processor, audio_processor, tokenizer, chat_template=chat_template
         )
