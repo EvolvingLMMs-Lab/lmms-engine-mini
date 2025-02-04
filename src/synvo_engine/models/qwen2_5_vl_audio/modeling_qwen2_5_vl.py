@@ -2215,6 +2215,8 @@ class KinoQwen2_5_VLForConditionalGeneration(
         pixel_values_videos=None,
         image_grid_thw=None,
         video_grid_thw=None,
+        audio_values=None,
+        audio_attention_mask=None,
         second_per_grid_ts=None,
         **kwargs,
     ):
@@ -2234,6 +2236,7 @@ class KinoQwen2_5_VLForConditionalGeneration(
         if cache_position[0] != 0:
             pixel_values = None
             pixel_values_videos = None
+            audio_values = None
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
         if inputs_embeds is not None and cache_position[0] == 0:
@@ -2273,6 +2276,8 @@ class KinoQwen2_5_VLForConditionalGeneration(
                 "pixel_values_videos": pixel_values_videos,
                 "image_grid_thw": image_grid_thw,
                 "video_grid_thw": video_grid_thw,
+                "audio_values": audio_values,
+                "audio_attention_mask": audio_attention_mask,
                 "cache_position": cache_position,
                 "second_per_grid_ts": second_per_grid_ts,
             }

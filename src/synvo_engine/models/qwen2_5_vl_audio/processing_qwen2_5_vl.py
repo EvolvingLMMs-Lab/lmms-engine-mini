@@ -308,6 +308,27 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
 
         return processor
 
+    def expand_audio_tokens(
+        self,
+        text: List[TextInput],
+        num_audio_tokens: List[int],
+        special_token: str,
+    ):
+        prompt_strings = []
+        current_audio_idx = 0
+        for sample in text:
+            while special_token in sample:
+                num_audio_token = num_audio_tokens[current_audio_idx]
+                sample = sample.replace(
+                    special_token, "<placeholder>" * num_audio_token, 1
+                )
+                current_audio_idx += 1
+            prompt_strings.append(sample)
+        text = [
+            sample.replace("<placeholder>", special_token) for sample in prompt_strings
+        ]
+        return text
+
     @property
     def default_chat_template(self):
         """
