@@ -215,6 +215,8 @@ class KinoQwen2_5_VLConfig(PretrainedConfig):
     ):
         if isinstance(vision_config, dict):
             self.vision_config = self.sub_configs["vision_config"](**vision_config)
+        elif isinstance(vision_config, Qwen2_5_VLVisionConfig):
+            self.vision_config = vision_config
         elif vision_config is None:
             self.vision_config = self.sub_configs["vision_config"]()
 

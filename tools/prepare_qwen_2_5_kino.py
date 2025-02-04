@@ -1,8 +1,10 @@
 import argparse
 from pathlib import Path
 
+import requests
 import torch
 from accelerate import init_empty_weights
+from PIL import Image
 from transformers import (
     AddedToken,
     AutoProcessor,
@@ -21,24 +23,17 @@ from synvo_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
 )
 
 
-def prepare_config(
-    audio_config, qwen2_5vl_config, image_token_id, video_token_id, audio_token_id
-):
-    config = KinoQwen2_5_VLConfig(
-        audio_config=audio_config,
-        image_token_id=image_token_id,
-        video_token_id=video_token_id,
-        audio_token_id=audio_token_id,
-        **qwen2_5vl_config.__dict__,
-    )
-    return config
-
-
 def load_pretrained_vl_model(repo_id):
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         repo_id, torch_dtype="auto", device_map="cuda:0"
     )
     return model
+
+
+def load_image():
+    url = "https://github.com/haotian-liu/LLaVA/blob/1a91fc274d7c35a9b50b3cb29c4247ae5837ce39/images/llava_v1_5_radar.jpg?raw=true"
+    image = Image.open(requests.get(url, stream=True).raw)
+    return image
 
 
 def load_pretrained_audio_model(repo_id):
@@ -70,21 +65,17 @@ def prepare_weights_for_kino(
             AddedToken("<|AUDIO|>", special=True, normalized=False), special_tokens=True
         )
 
-        image_token_id = tokenizer.convert_tokens_to_ids("<|image_pad|>")
-        video_token_id = tokenizer.convert_tokens_to_ids("<|video_pad|>")
         audio_token_id = tokenizer.convert_tokens_to_ids("<|AUDIO|>")
-        config = prepare_config(
-            qwen2_5_audio_model.config.audio_config,
-            qwen2_5_vl_model.config,
-            image_token_id,
-            video_token_id,
-            audio_token_id,
+        config = KinoQwen2_5_VLConfig(
+            audio_token_id=audio_token_id,
+            audio_config=qwen2_5_audio_model.config.audio_config,
+            **qwen2_5_vl_model.config.to_dict(),
         )
 
         processor = KinoQwen2_5_VLProcessor(
             image_processor=qwen2_5_processor.image_processor,
-            tokenizer=tokenizer,
             audio_processor=qwen2_5_audio_processor.feature_extractor,
+            tokenizer=tokenizer,
         )
 
         with init_empty_weights():
@@ -147,6 +138,27 @@ def prepare_weights_for_kino(
     )
     processor = KinoQwen2_5_VLProcessor.from_pretrained(pytorch_dump_folder_path)
 
+    device = model.device
+
+    # prepare inputs
+    image = load_image()
+    prompt = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>\nWhat is shown in this image?<|im_end|>\n<|im_start|>assistant\n"
+    inputs = processor(images=image, text=prompt, return_tensors="pt", padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # verify generation
+    output_ids = model.generate(
+        **inputs,
+        max_new_tokens=100,
+        use_cache=True,
+    )
+
+    generated_text = processor.batch_decode(output_ids, skip_special_tokens=True)[
+        0
+    ].strip()
+
+    print("Generated text:", repr(generated_text))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -172,4 +184,11 @@ if __name__ == "__main__":
         "--with_out_init",
         action="store_true",
         help="Whether init or not init but just debugging...",
+    )
+    args = parser.parse_args()
+    prepare_weights_for_kino(
+        args.qwen2_5_vl_repo_id,
+        args.qwen2_5_audio_repo_id,
+        args.pytorch_dump_folder_path,
+        args.with_out_init,
     )
