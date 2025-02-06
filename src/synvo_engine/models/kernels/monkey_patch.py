@@ -1,10 +1,16 @@
 import inspect
 from typing import Callable
 
-from liger_kernel.transformers.cross_entropy import LigerCrossEntropyLoss
-from liger_kernel.transformers.qwen2vl_mrope import liger_multimodal_rotary_pos_emb
-from liger_kernel.transformers.rms_norm import LigerRMSNorm
-from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
+try:
+    from liger_kernel.transformers.cross_entropy import LigerCrossEntropyLoss
+    from liger_kernel.transformers.qwen2vl_mrope import liger_multimodal_rotary_pos_emb
+    from liger_kernel.transformers.rms_norm import LigerRMSNorm
+    from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
+except:
+    print(
+        "liger kernel not installed, please install it with `pip install liger-kernel`"
+    )
+
 from transformers import PreTrainedModel
 
 from ...utils.logging_utils import Logging
