@@ -3,7 +3,7 @@ from typing import Union, overload
 from ...protocol import Processable
 from .config import ProcessorConfig
 from .vision import LLaVADataProcessor, Qwen2VLDataProcessor
-from .vision_audio import KinoDataProcessor
+from .vision_audio import KinoDataProcessor, KinoQwen2_5_DataProcessor
 
 
 class ProcessorFactory:
@@ -53,6 +53,8 @@ class ProcessorFactory:
     def create_vision_audio_processor(processor_config: ProcessorConfig) -> Processable:
         if processor_config.processor_type == "kino":
             return KinoDataProcessor(processor_config)
+        elif processor_config.processor_type == "kino_qwen2_5":
+            return KinoQwen2_5_DataProcessor(processor_config)
         else:
             raise NotImplementedError(
                 f"Processor {processor_config.processor_name} not implemented"

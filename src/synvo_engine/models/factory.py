@@ -3,6 +3,7 @@ import importlib
 MODEL_REGISTRY = {
     "llava_onevision": "LlavaOnevisionForConditionalGeneration",
     "kino": "KinoForConditionalGeneration",
+    "qwen2_5_vl_audio": "KinoQwen2_5_VLForConditionalGeneration",
 }
 
 

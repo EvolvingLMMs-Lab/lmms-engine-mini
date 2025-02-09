@@ -4,6 +4,10 @@ import torch
 
 from ..datasets import DatasetFactory
 from ..models import ModelFactory
+from ..models.kernels import CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN
+from ..models.kernels import (
+    _apply_liger_kernel_to_instance as _apply_liger_kernel_to_custom_instance,
+)
 from ..utils import Logging
 from ..utils.train import TrainUtilities
 from .config import TrainerConfig
@@ -54,23 +58,33 @@ class BaseTrainer(ABC):
                 "Please install it with `pip install liger-kernel`"
             )
 
-        try:
-            model_type = getattr(self.model.language_model, "config", None) and getattr(
-                self.model.language_model.config, "model_type", None
+        model_type = getattr(self.model, "config", None) and getattr(
+            self.model.config, "model_type", None
+        )
+        if model_type in CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN:
+            Logging.info(f"Try to apply liger kernel on the model {model_type}")
+            _apply_liger_kernel_to_custom_instance(self.model)
+        else:
+            Logging.info(
+                f"Not found model class, Try to apply liger kernel on the language model of the model {model_type}"
             )
-            _apply_liger_kernel_to_instance(self.model.language_model)
-            if model_type and model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
-                Logging.info(
-                    f"Successfully apply liger kernels to model type {model_type}"
+            try:
+                model_type = getattr(
+                    self.model.language_model, "config", None
+                ) and getattr(self.model.language_model.config, "model_type", None)
+                _apply_liger_kernel_to_instance(self.model.language_model)
+                if model_type and model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
+                    Logging.info(
+                        f"Successfully apply liger kernels to model type {model_type}"
+                    )
+                else:
+                    Logging.info(
+                        f"Cannot find model type {model_type} in MODEL_TYPE_TO_APPLY_LIGER_FN, skip applying liger kernels"
+                    )
+            except Exception as e:
+                Logging.error(
+                    f"Try to apply liger kernel on the language model of the model, but failed with exceptions : \n {e}"
                 )
-            else:
-                Logging.info(
-                    f"Cannot find model type {model_type} in MODEL_TYPE_TO_APPLY_LIGER_FN, skip applying liger kernels"
-                )
-        except Exception as e:
-            Logging.error(
-                f"Try to apply liger kernel on the language model of the model, but failed with exceptions : \n {e}"
-            )
 
     def _load_mm_projector(self):
         pretrain_mm_mlp_adapter = self.config.model_config.pretrain_mm_mlp_adapter

@@ -50,20 +50,31 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
+from synvo_engine.utils.logging_utils import Logging
+
 from .kernels import Attention as SequenceParallelAttention
 from .kernels import fast_cross_entropy_loss
 
 faster_llama_rmsnorm = None
 if is_flash_attn_2_available():
-    from flash_attn import flash_attn_func, flash_attn_varlen_func
-    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
-    from flash_attn.ops.rms_norm import rms_norm
+    try:
+        from flash_attn import flash_attn_func, flash_attn_varlen_func
+        from flash_attn.bert_padding import (  # noqa
+            index_first_axis,
+            pad_input,
+            unpad_input,
+        )
+        from flash_attn.ops.rms_norm import rms_norm
 
-    faster_llama_rmsnorm = rms_norm
+        faster_llama_rmsnorm = rms_norm
 
-    _flash_supports_window_size = "window_size" in list(
-        inspect.signature(flash_attn_func).parameters
-    )
+        _flash_supports_window_size = "window_size" in list(
+            inspect.signature(flash_attn_func).parameters
+        )
+    except:
+        Logging.info(
+            "Found flash_attn but no layer norm install. Please install with csrc/layer_norm in fa2"
+        )
 
 
 logger = logging.get_logger(__name__)
@@ -1813,7 +1824,7 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel, GenerationMixin):
             if isinstance(past_key_values, Cache):
                 cache_length = past_key_values.get_seq_length()
                 past_length = past_key_values.seen_tokens
-                max_cache_length = past_key_values.get_max_length()
+                max_cache_length = past_key_values.get_max_cache_shape()
             else:
                 cache_length = past_length = past_key_values[0][0].shape[2]
                 max_cache_length = None
