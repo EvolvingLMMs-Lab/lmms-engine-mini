@@ -3,7 +3,13 @@ from typing import List, Literal
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
 from ..protocol import Runnable
-from ..train import DPOArguments, TrainerConfig, TrainerFactory, TrainingArguments
+from ..train import (
+    DPOArguments,
+    GRPOArguments,
+    TrainerConfig,
+    TrainerFactory,
+    TrainingArguments,
+)
 
 
 class Pipeline:
@@ -59,5 +65,7 @@ class Pipeline:
             return TrainingArguments(**config)
         elif args_type == "dpo":
             return DPOArguments(**config)
+        elif args_type == "grpo":
+            return GRPOArguments(**config)
         else:
             raise NotImplementedError
