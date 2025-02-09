@@ -21,6 +21,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         audios: Optional[List[np.ndarray]] = None,
         sampling_rate: Optional[int] = None,
         videos=None,
+        system_message: str = "You are a helpful assistant",
         add_system_prompt=True,
         **kwargs,
     ):
@@ -102,6 +103,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             hf_messages,
             num_image_tokens,
             num_audio_tokens,
+            system_message=system_message,
             add_system_prompt=add_system_prompt,
         )
         if images is not None:
