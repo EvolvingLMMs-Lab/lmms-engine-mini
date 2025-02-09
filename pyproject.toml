@@ -40,6 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 pref = [
     "trl @ git+https://github.com/huggingface/trl.git",
+    "math-verify",
 ]
 
 all = [
