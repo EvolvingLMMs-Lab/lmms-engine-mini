@@ -9,7 +9,6 @@ def accuracy_reward(completions, solution, **kwargs):
     """Reward function that checks if the completion is correct using either symbolic verification or exact string matching."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
-    current_time = datetime.now().strftime("%d-%H-%M-%S-%f")
     for content, sol in zip(contents, solution):
         reward = 0.0
         # Try symbolic verification first
@@ -40,14 +39,6 @@ def accuracy_reward(completions, solution, **kwargs):
                 pass  # Keep reward as 0.0 if both methods fail
 
         rewards.append(reward)
-        if os.getenv("DEBUG_MODE") == "true":
-            log_path = os.getenv("LOG_PATH")
-            with open(log_path, "a") as f:
-                f.write(
-                    f"------------- {current_time} Accuracy reward: {reward} -------------\n"
-                )
-                f.write(f"Content: {content}\n")
-                f.write(f"Solution: {sol}\n")
     return rewards
 
 
