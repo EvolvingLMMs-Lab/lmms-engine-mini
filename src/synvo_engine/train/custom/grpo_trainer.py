@@ -24,6 +24,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    DataCollator,
     GenerationConfig,
     PreTrainedModel,
     PreTrainedTokenizerBase,
@@ -146,6 +147,7 @@ class LLaVAGRPOTrainer(Trainer):
             Optional[torch.optim.Optimizer], Optional[torch.optim.lr_scheduler.LambdaLR]
         ] = (None, None),
         peft_config: Optional["PeftConfig"] = None,
+        data_collator: Optional[DataCollator] = None,
     ):
         # Args
         if args is None:
@@ -190,11 +192,6 @@ class LLaVAGRPOTrainer(Trainer):
 
         if peft_config is not None:
             model = get_peft_model(model, peft_config)
-
-        if isinstance(ref_model, str):
-            ref_model = AutoModelForCausalLM.from_pretrained(
-                ref_model, **ref_model_init_kwargs
-            )
 
         # Reference model
         # Changes here, I can't override ref model without directly modify it here
@@ -258,7 +255,7 @@ class LLaVAGRPOTrainer(Trainer):
         self.reward_processing_classes = reward_processing_classes
 
         # Data collator
-        def data_collator(features):  # No data collation is needed in GRPO
+        def dummy_data_collator(features):  # No data collation is needed in GRPO
             return features
 
         # Training arguments
@@ -286,7 +283,9 @@ class LLaVAGRPOTrainer(Trainer):
         super().__init__(
             model=model,
             args=args,
-            data_collator=data_collator,
+            data_collator=dummy_data_collator
+            if data_collator is None
+            else data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             processing_class=processing_class,
@@ -468,7 +467,12 @@ class LLaVAGRPOTrainer(Trainer):
         # In our collator, the input_ids and attn mask has been prepared
         prompt_ids = inputs.pop("input_ids")
         prompt_mask = inputs.pop("attention_mask")
+        position_ids = inputs.pop("position_ids")
         solution = inputs.pop("solution")
+        if "labels" in inputs:
+            inputs.pop("labels")
+        # It is being wrapped into a list, so we need to unwrap it
+        solution = [sol[0] for sol in solution]
         prompts = self.processing_class.batch_decode(prompt_ids)
         # self.generation_config.num_return_sequences = self.num_generations
 
@@ -509,9 +513,10 @@ class LLaVAGRPOTrainer(Trainer):
             1
         )  # we only need to compute the logits for the completion tokens
 
-        repeated_inputs = {}
-        for key, values in inputs.items():
-            repeated_inputs[key] = values.repeat_interleave(self.num_generations, dim=0)
+        # Does not actually needs to repeat again here
+        repeated_inputs = inputs
+        # for key, values in inputs.items():
+        # repeated_inputs[key] = values.repeat_interleave(self.num_generations, dim=0)
 
         with torch.inference_mode():
             if self.ref_model is not None:
@@ -536,14 +541,21 @@ class LLaVAGRPOTrainer(Trainer):
         completions_text = self.processing_class.batch_decode(
             completion_ids, skip_special_tokens=True
         )
+        # WARNING:
+        # I am hardcoded this because current reward funcs takes completions as messages
         # if is_conversational(inputs[0]):
-        # completions = [[{"role": "assistant", "content": completion}] for completion in completions_text]
+        completions = [
+            [{"role": "assistant", "content": completion}]
+            for completion in completions_text
+        ]
         # else:
-        completions = completions_text
+        # completions = completions_text
 
         rewards_per_func = torch.zeros(
             len(prompts), len(self.reward_funcs), device=device
         )
+        # Assign solution back to inputs here
+        inputs["solution"] = solution
         for i, (reward_func, reward_processing_class) in enumerate(
             zip(self.reward_funcs, self.reward_processing_classes)
         ):
@@ -569,10 +581,11 @@ class LLaVAGRPOTrainer(Trainer):
                     ]  # Shape (B*G,)
             else:
                 # Repeat all input columns (but "prompt" and "completion") to match the number of generations
-                keys = [key for key in inputs[0] if key not in ["prompt", "completion"]]
-                reward_kwargs = {
-                    key: [example[key] for example in inputs] for key in keys
-                }
+                # Our inputs is dict already, changes here, be noticed
+                keys = [
+                    key for key in inputs.keys() if key not in ["prompt", "completion"]
+                ]
+                reward_kwargs = {key: inputs[key] for key in keys}
                 output_reward_func = reward_func(
                     prompts=prompts, completions=completions, **reward_kwargs
                 )

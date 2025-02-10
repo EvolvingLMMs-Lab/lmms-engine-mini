@@ -70,6 +70,7 @@ class GRPOPreferenceDataset(VisionAudioSFTDataset):
             audios=audios,
             sampling_rate=self.processor.sampling_rate,
             system_message=GRPO_SYSTEM_PROMPT,
+            add_generation_prompt=True,
         )
         inputs["solution"] = solutions
         return inputs

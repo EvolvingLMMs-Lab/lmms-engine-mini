@@ -54,6 +54,7 @@ class Hf_Trainer(BaseTrainer):
                 ref_model=self.ref_model,
                 train_dataset=self.train_dataset,
                 reward_funcs=reward_funcs,
+                data_collator=self.train_dataset.get_collator(),
             )
         else:
             raise NotImplementedError(

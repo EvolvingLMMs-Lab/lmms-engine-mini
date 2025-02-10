@@ -23,6 +23,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         videos=None,
         system_message: str = "You are a helpful assistant",
         add_system_prompt=True,
+        add_generation_prompt=False,  # Whether add a generation prompt at the end
         **kwargs,
     ):
         """
@@ -79,10 +80,11 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             num_audio_tokens,
             system_message=system_message,
             add_system_prompt=add_system_prompt,
+            add_generation_prompt=add_generation_prompt,
         )
         if images is not None:
             inputs["pixel_values"] = image_inputs["pixel_values"]
-            inputs["image_sizes"] = image_inputs["image_sizes"]
+            inputs["image_grid_thw"] = image_inputs["image_sizes"]
         if audios is not None:
             inputs["audio_values"] = audio_inputs["audio_values"]
             inputs["audio_attention_mask"] = audio_inputs["audio_attention_mask"]
@@ -96,6 +98,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         num_audio_tokens: List[int],
         system_message: str = "You are a helpful assistant",
         add_system_prompt: bool = True,
+        add_generation_prompt: bool = False,
     ):
         image_token_index = self.processor.tokenizer.convert_tokens_to_ids(
             self.processor.image_token
@@ -133,6 +136,12 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
                 encode_id[:3] = [-100] * 3
                 target += encode_id
 
+        if add_generation_prompt:
+            generation_tokens = self.processor.tokenizer.encode(
+                "<|im_start|>assistant\n"
+            )
+            input_id += generation_tokens
+            target += [-100] * len(generation_tokens)
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:
