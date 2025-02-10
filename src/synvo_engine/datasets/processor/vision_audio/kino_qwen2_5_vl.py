@@ -12,6 +12,10 @@ from .kino_processor import KinoDataProcessor
 class KinoQwen2_5_DataProcessor(KinoDataProcessor):
     def _build_processor(self):
         processor = KinoQwen2_5_VLProcessor.from_pretrained(self.config.processor_name)
+        if self.config.max_pixels:
+            processor.image_processor.max_pixels = self.config.max_pixels
+        if self.config.min_pixels:
+            processor.image_processor.min_pixels = self.config.min_pixels
         return processor
 
     def process(

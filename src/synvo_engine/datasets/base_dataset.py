@@ -67,10 +67,6 @@ class BaseDataset(Dataset):
 
     def _build_processor(self):
         processor = ProcessorFactory.create_processor(self.processor_config)
-        if self.processor_config.overwrite_config:
-            for key, value in self.processor_config.overwrite_config.items():
-                setattr(processor, key, value)
-                Logging.info(f"Overwrite processor {key} to {value}")
         return processor
 
     def build(self):
