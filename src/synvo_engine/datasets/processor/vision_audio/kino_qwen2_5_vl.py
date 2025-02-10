@@ -43,38 +43,12 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             image_inputs = self.processor.image_processor(
                 images, return_tensors="pt", **output_kwargs["images_kwargs"]
             )
-            # Manually handle navit here
-            if self.processor.vision_feature_select_strategy == "navit":
-                image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
-                merge_size = self.processor.image_processor.merge_size
-                num_image_tokens = [
-                    (image_size[-2] * image_size[-1]).item() // (merge_size**2)
-                    for image_size in image_inputs["image_sizes"]
-                ]
-            else:
-                image_sizes = iter(image_inputs["image_sizes"].tolist())
-                height = image_inputs["pixel_values"].shape[-2]
-                width = image_inputs["pixel_values"].shape[-1]
-                num_image_tokens = [
-                    self.processor._get_number_of_features(
-                        image_size[0], image_size[1], height, width
-                    )
-                    for image_size in image_sizes
-                ]
-                # FIXME Hack max patches to 5
-                max_patches = 5
-                zero_padding = torch.zeros(
-                    len(images),
-                    max_patches - image_inputs["pixel_values"].shape[1],
-                    3,
-                    height,
-                    width,
-                    dtype=image_inputs["pixel_values"].dtype,
-                    device=image_inputs["pixel_values"].device,
-                )
-                image_inputs["pixel_values"] = torch.concat(
-                    [image_inputs["pixel_values"], zero_padding], dim=1
-                )
+            image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
+            merge_size = self.processor.image_processor.merge_size
+            num_image_tokens = [
+                (image_size[-2] * image_size[-1]).item() // (merge_size**2)
+                for image_size in image_inputs["image_sizes"]
+            ]
         else:
             num_image_tokens = None
 
