@@ -23,7 +23,7 @@ class DPOArguments(DPOConfig):
 @dataclass
 class GRPOArguments(GRPOConfig):
     freeze_modules: Optional[List[str]] = None
-    reward_func: Optional[List[str]] = ["accuracy", "format"]
+    reward_funcs: Optional[List[str]] = None
 
 
 TrainingArgumentType = Union[TrainingArguments, DPOArguments, GRPOArguments]

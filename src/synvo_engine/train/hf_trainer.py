@@ -8,7 +8,8 @@ from ..utils import Logging
 from ..utils.train import TrainUtilities
 from .base_trainer import BaseTrainer
 from .config import TrainerConfig
-from .custom import LLaVADPOTrainer, LLaVATrainer
+from .custom import LLaVADPOTrainer, LLaVAGRPOTrainer, LLaVATrainer
+from .reward_func import REWARD_FUNC_REGISTRY
 
 
 class Hf_Trainer(BaseTrainer):
@@ -19,6 +20,9 @@ class Hf_Trainer(BaseTrainer):
         super().build()
         if self.config.trainer_args_type == "dpo":
             Logging.info("Init Reference Model for DPO ...")
+            self.ref_model = self._build_ref_model()
+        elif self.config.trainer_args_type == "grpo":
+            Logging.info("Init Reference Model for GRPO...")
             self.ref_model = self._build_ref_model()
         self.trainer = self._build_trainer()
 
@@ -38,6 +42,18 @@ class Hf_Trainer(BaseTrainer):
                 data_collator=self.train_dataset.get_collator(),
                 train_dataset=self.train_dataset,
                 processing_class=self.train_dataset.processor,
+            )
+        elif self.config.trainer_args_type == "grpo":
+            reward_funcs = [
+                REWARD_FUNC_REGISTRY[func]
+                for func in self.config.trainer_args.reward_funcs
+            ]
+            trainer = LLaVAGRPOTrainer(
+                model=self.model,
+                args=self.config.trainer_args,
+                ref_model=self.ref_model,
+                train_dataset=self.train_dataset,
+                reward_funcs=reward_funcs,
             )
         else:
             raise NotImplementedError(
