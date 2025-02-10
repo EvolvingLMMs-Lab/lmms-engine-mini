@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List, Literal, Optional, Union
 
 import transformers
-from trl import DPOConfig
+from trl import DPOConfig, GRPOConfig
 
 from ..datasets import DatasetConfig
 from ..models import ModelConfig
@@ -20,7 +20,13 @@ class DPOArguments(DPOConfig):
     freeze_modules: Optional[List[str]] = None
 
 
-TrainingArgumentType = Union[TrainingArguments, DPOArguments]
+@dataclass
+class GRPOArguments(GRPOConfig):
+    freeze_modules: Optional[List[str]] = None
+    reward_funcs: Optional[List[str]] = None
+
+
+TrainingArgumentType = Union[TrainingArguments, DPOArguments, GRPOArguments]
 
 
 @dataclass

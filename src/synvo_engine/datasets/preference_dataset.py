@@ -10,6 +10,7 @@ from .base_dataset import BaseDataset
 from .collator import PreferenceCollator
 from .config import DatasetConfig
 from .processor import ProcessorConfig
+from .vision_audio_dataset import VisionAudioSFTDataset
 
 
 class VisionPreferenceDataset(BaseDataset):

@@ -12,6 +12,10 @@ from .kino_processor import KinoDataProcessor
 class KinoQwen2_5_DataProcessor(KinoDataProcessor):
     def _build_processor(self):
         processor = KinoQwen2_5_VLProcessor.from_pretrained(self.config.processor_name)
+        if self.config.max_pixels:
+            processor.image_processor.max_pixels = self.config.max_pixels
+        if self.config.min_pixels:
+            processor.image_processor.min_pixels = self.config.min_pixels
         return processor
 
     def process(
@@ -21,7 +25,9 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         audios: Optional[List[np.ndarray]] = None,
         sampling_rate: Optional[int] = None,
         videos=None,
+        system_message: str = "You are a helpful assistant",
         add_system_prompt=True,
+        add_generation_prompt=False,  # Whether add a generation prompt at the end
         **kwargs,
     ):
         """
@@ -42,38 +48,12 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             image_inputs = self.processor.image_processor(
                 images, return_tensors="pt", **output_kwargs["images_kwargs"]
             )
-            # Manually handle navit here
-            if self.processor.vision_feature_select_strategy == "navit":
-                image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
-                merge_size = self.processor.image_processor.merge_size
-                num_image_tokens = [
-                    (image_size[-2] * image_size[-1]).item() // (merge_size**2)
-                    for image_size in image_inputs["image_sizes"]
-                ]
-            else:
-                image_sizes = iter(image_inputs["image_sizes"].tolist())
-                height = image_inputs["pixel_values"].shape[-2]
-                width = image_inputs["pixel_values"].shape[-1]
-                num_image_tokens = [
-                    self.processor._get_number_of_features(
-                        image_size[0], image_size[1], height, width
-                    )
-                    for image_size in image_sizes
-                ]
-                # FIXME Hack max patches to 5
-                max_patches = 5
-                zero_padding = torch.zeros(
-                    len(images),
-                    max_patches - image_inputs["pixel_values"].shape[1],
-                    3,
-                    height,
-                    width,
-                    dtype=image_inputs["pixel_values"].dtype,
-                    device=image_inputs["pixel_values"].device,
-                )
-                image_inputs["pixel_values"] = torch.concat(
-                    [image_inputs["pixel_values"], zero_padding], dim=1
-                )
+            image_inputs["image_sizes"] = image_inputs.pop("image_grid_thw")
+            merge_size = self.processor.image_processor.merge_size
+            num_image_tokens = [
+                (image_size[-2] * image_size[-1]).item() // (merge_size**2)
+                for image_size in image_inputs["image_sizes"]
+            ]
         else:
             num_image_tokens = None
 
@@ -102,11 +82,13 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             hf_messages,
             num_image_tokens,
             num_audio_tokens,
+            system_message=system_message,
             add_system_prompt=add_system_prompt,
+            add_generation_prompt=add_generation_prompt,
         )
         if images is not None:
             inputs["pixel_values"] = image_inputs["pixel_values"]
-            inputs["image_sizes"] = image_inputs["image_sizes"]
+            inputs["image_grid_thw"] = image_inputs["image_sizes"]
         if audios is not None:
             inputs["audio_values"] = audio_inputs["audio_values"]
             inputs["audio_attention_mask"] = audio_inputs["audio_attention_mask"]
@@ -120,6 +102,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         num_audio_tokens: List[int],
         system_message: str = "You are a helpful assistant",
         add_system_prompt: bool = True,
+        add_generation_prompt: bool = False,
     ):
         image_token_index = self.processor.tokenizer.convert_tokens_to_ids(
             self.processor.image_token
@@ -157,6 +140,12 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
                 encode_id[:3] = [-100] * 3
                 target += encode_id
 
+        if add_generation_prompt:
+            generation_tokens = self.processor.tokenizer.encode(
+                "<|im_start|>assistant\n"
+            )
+            input_id += generation_tokens
+            target += [-100] * len(generation_tokens)
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:

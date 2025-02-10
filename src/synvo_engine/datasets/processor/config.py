@@ -7,4 +7,5 @@ class ProcessorConfig:
     processor_name: str
     processor_modality: Literal["vision", "audio"]
     processor_type: str
-    overwrite_config: Optional[dict] = None
+    max_pixels: Optional[int] = None
+    min_pixels: Optional[int] = None
