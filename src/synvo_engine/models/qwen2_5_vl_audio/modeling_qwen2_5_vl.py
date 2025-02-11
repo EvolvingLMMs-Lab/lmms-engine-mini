@@ -184,8 +184,9 @@ def apply_rotary_pos_emb_flashatt(
     tensor: torch.Tensor, freqs: torch.Tensor
 ) -> torch.Tensor:
     tensor_ = tensor.float()
-    cos = freqs.cos()
-    sin = freqs.sin()
+    # To make sure fa2 on the same type
+    cos = freqs.cos().float()
+    sin = freqs.sin().float()
     output = apply_rotary_emb(tensor_, cos, sin).type_as(tensor)
     return output
 
@@ -442,7 +443,7 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
             context_dim=config.hidden_size,
             spatial_merge_size=config.spatial_merge_size,
         )
-        self.gradient_checkpointing = True
+        self.gradient_checkpointing = False
 
     def rot_pos_emb(self, grid_thw):
         pos_ids = []
@@ -1233,7 +1234,7 @@ class Qwen2_5_VLModel(Qwen2_5_VLPreTrainedModel):
         self.norm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = Qwen2_5_VLRotaryEmbedding(config=config)
 
-        self.gradient_checkpointing = True
+        self.gradient_checkpointing = False
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1591,6 +1592,7 @@ class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     rope_deltas: Optional[torch.LongTensor] = None
+    flops: Optional[float] = None
 
 
 QWEN2_5_VL_INPUTS_DOCSTRING = r"""
@@ -2160,6 +2162,7 @@ class KinoQwen2_5_VLForConditionalGeneration(
                 position_ids = position_ids.add(delta)
                 position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
+        flops = self.calc_gpt_flops(attention_mask)
         outputs = self.model(
             input_ids=None,
             position_ids=position_ids,
@@ -2202,6 +2205,7 @@ class KinoQwen2_5_VLForConditionalGeneration(
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
             rope_deltas=self.rope_deltas,
+            flops=flops,
         )
 
     def prepare_inputs_for_generation(
@@ -2285,6 +2289,39 @@ class KinoQwen2_5_VLForConditionalGeneration(
             }
         )
         return model_inputs
+
+    def flops_per_token(self):
+        num_hidden_layers = self.config.num_hidden_layers
+        hidden_size = self.config.hidden_size
+        vocab_size = self.config.vocab_size
+        intermediate_size = self.config.intermediate_size
+        kv_heads = self.config.num_key_value_heads
+        attn_heads = self.config.num_attention_heads
+        total_params = 0.0  # initilize total_params as float, to avoid overflow of 'flops' when using 512 gpus
+        # head, mebedding not considered
+        total_params += vocab_size * hidden_size
+        # transformers
+        params_per_block = 2 * hidden_size * hidden_size
+        params_per_block += 4 * hidden_size * hidden_size * kv_heads // attn_heads
+        params_per_block += 3 * hidden_size * intermediate_size
+        total_params += params_per_block * num_hidden_layers
+
+        flops = 6 * total_params
+        return flops
+
+    def calc_gpt_flops(self, attention_mask):
+        tokens_count = torch.sum(attention_mask != 0).item()
+        flops = self.flops_per_token() * tokens_count
+        token_count_list = torch.sum(attention_mask != 0, dim=1).tolist()
+        for seq_len in token_count_list:
+            flops += (
+                12
+                * seq_len
+                * seq_len
+                * self.config.num_hidden_layers
+                * self.config.hidden_size
+            )
+        return flops
 
 
 __all__ = [

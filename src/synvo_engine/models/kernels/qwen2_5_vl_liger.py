@@ -4,14 +4,15 @@ import torch
 from packaging import version
 from torch.nn import CrossEntropyLoss
 from transformers import __version__ as transformers_version
-from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
-    _CONFIG_FOR_DOC,
-    QWEN2_5_VL_INPUTS_DOCSTRING,
-    Qwen2_5_VLCausalLMOutputWithPast,
-)
 from transformers.utils import (
     add_start_docstrings_to_model_forward,
     replace_return_docstrings,
+)
+
+from synvo_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
+    _CONFIG_FOR_DOC,
+    QWEN2_5_VL_INPUTS_DOCSTRING,
+    Qwen2_5_VLCausalLMOutputWithPast,
 )
 
 try:
@@ -244,6 +245,7 @@ def lce_forward(
             position_ids = position_ids.add(delta)
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
+    flops = self.calc_gpt_flops(attention_mask)
     outputs = self.model(
         input_ids=None,
         position_ids=position_ids,
@@ -299,4 +301,5 @@ def lce_forward(
         hidden_states=outputs.hidden_states,
         attentions=outputs.attentions,
         rope_deltas=rope_deltas,
+        flops=flops,
     )
