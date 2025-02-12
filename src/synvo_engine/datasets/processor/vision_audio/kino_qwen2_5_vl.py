@@ -45,6 +45,19 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         audio_inputs = {}
 
         if images is not None:
+            # Handle smart resize edge case
+            new_images = []
+            for image in images:
+                height = image.size[0]
+                width = image.size[1]
+                if width < 28 and height < 28:
+                    image = image.resize((28, 28))
+                elif height < 28:
+                    image = image.resize((28, width))
+                elif width < 28:
+                    image = image.resize((height, 28))
+                new_images.append(image)
+            images = new_images
             image_inputs = self.processor.image_processor(
                 images, return_tensors="pt", **output_kwargs["images_kwargs"]
             )
