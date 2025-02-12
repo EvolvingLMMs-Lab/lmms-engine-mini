@@ -6,7 +6,7 @@ from typing import Dict, List
 import librosa
 import numpy as np
 from datasets import Sequence, load_dataset
-from PIL import Image
+from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
 
 from ..utils import Logging
@@ -15,6 +15,9 @@ from ..utils.train import TrainUtilities
 from .collator import VisionCollator
 from .config import DatasetConfig
 from .processor import ProcessorConfig, ProcessorFactory
+
+LARGE_ENOUGH_NUMBER = 1000
+PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
 
 
 class BaseDataset(Dataset):
