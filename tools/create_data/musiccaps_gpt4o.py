@@ -55,7 +55,7 @@ def parse_output(response, audio_path):
         speaker = match[0] or match[2]  # Match the User or AI Assistant
         if speaker == "User":
             speaker = "user"
-        elif speaker == "assistant":
+        elif speaker == "AI Assistant":
             speaker = "assistant"
         answer = match[1] or match[3]  # Capture their response
         if first_one:
@@ -116,7 +116,6 @@ def get_response(max_tokens: int, content: str, retries: int = retries):
 
 def process_single_data(data):
     messages = data["messages"]
-    new_data = []
     for message in messages:
         if message["role"] == "assistant":
             content = message["content"][0]["text"]
@@ -125,7 +124,7 @@ def process_single_data(data):
         elif message["role"] == "user":
             audio_path = message["content"][0]["audio_url"]["url"]
 
-    new_data.append({"id": data["id"], "messages": parse_output(response, audio_path)})
+    new_data = {"id": data["id"], "messages": parse_output(response, audio_path)}
     return new_data
 
 
