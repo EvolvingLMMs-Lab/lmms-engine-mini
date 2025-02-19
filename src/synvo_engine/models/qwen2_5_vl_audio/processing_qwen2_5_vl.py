@@ -48,7 +48,7 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
     attributes = ["image_processor", "audio_processor", "tokenizer"]
     valid_kwargs = ["chat_template"]
 
-    image_processor_class = "Qwen2_5_VLImageProcessor"
+    image_processor_class = "AutoImageProcessor"
     audio_processor_class = "WhisperFeatureExtractor"
     tokenizer_class = ("Qwen2Tokenizer", "Qwen2TokenizerFast")
 
