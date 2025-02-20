@@ -1,4 +1,4 @@
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .collator import GRPOCollator
 from .vision_audio_dataset import VisionAudioSFTDataset
 

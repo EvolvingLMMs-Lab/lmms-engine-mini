@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from ...protocol import Processable
-from ...utils.train import TrainUtilities
+from ...utils.train_utils import TrainUtilities
 
 
 @dataclass

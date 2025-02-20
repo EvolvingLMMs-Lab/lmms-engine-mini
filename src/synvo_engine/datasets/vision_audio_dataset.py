@@ -5,7 +5,7 @@ import librosa
 import torch
 from PIL import Image
 
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .vision_dataset import VisionSFTDataset
 
 MAX_AUDIO_LENGTH = 30

@@ -5,7 +5,7 @@ import deepspeed
 import torch
 from transformers import AutoProcessor
 
-from ..logging_utils import Logging
+from .logging_utils import Logging
 
 
 class TrainUtilities:

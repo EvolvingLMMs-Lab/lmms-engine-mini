@@ -6,12 +6,13 @@ from typing import Dict, List
 import librosa
 import numpy as np
 from datasets import Sequence, load_dataset
+from decord import VideoReader, cpu
 from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
 
 from ..utils import Logging
 from ..utils.data_utils import DataUtilities
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .collator import VisionCollator
 from .config import DatasetConfig
 from .processor import ProcessorConfig, ProcessorFactory
@@ -257,6 +258,23 @@ class BaseDataset(Dataset):
             audio_path = os.path.join(data_folder, audio_path)
         audio = librosa.load(audio_path, sr=sr)[0]
         return audio
+
+    def load_videos(
+        self, video_path: str, data_folder=None, fps: int = 1.0
+    ) -> np.ndarray:
+        if data_folder is not None:
+            video_path = os.path.join(data_folder, video_path)
+        if type(video_path) == str:
+            vr = VideoReader(video_path, ctx=cpu(0))
+        else:
+            vr = VideoReader(video_path[0], ctx=cpu(0))
+        total_frames, video_fps = len(vr), vr.get_avg_fps()
+        uniform_sampled_frames = np.linspace(
+            0, total_frames - 1, max_frames_num, dtype=int
+        )
+        frame_idx = uniform_sampled_frames.tolist()
+        spare_frames = vr.get_batch(frame_idx).asnumpy()
+        return spare_frames  # (frames, height, width, channels)
 
     @abstractmethod
     def load_from_json(self, data, data_folder=None):

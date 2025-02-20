@@ -160,7 +160,8 @@ class KinoDataProcessor:
             target += [-100] * len(input_id)
         for message in hf_messages:
             role = message["role"]
-            encode_id = self.processor.apply_chat_template([message], tokenize=True)
+            # Cautions, qwen2_5 vl tokenizer wrap into a list
+            encode_id = self.processor.apply_chat_template([message], tokenize=True)[0]
             if image_token_index in encode_id:
                 encode_id, used_images = self._expand_encode_id_image_tokens(
                     encode_id, num_image_tokens, start_from
