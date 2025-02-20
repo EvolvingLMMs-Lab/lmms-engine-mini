@@ -8,33 +8,34 @@ class SFTChatDataText(BaseModel):
     text: str
 
 
-class SFTChatDataImageURL(BaseModel):
+class SFTChatDataURL(BaseModel):
     url: str
 
 
 class SFTChatDataImage(BaseModel):
     type: Literal["image_url"]
-    image_url: SFTChatDataImageURL
-
-
-class SFTChatDataAudioURL(BaseModel):
-    url: str
+    image_url: SFTChatDataURL
 
 
 class SFTChatDataAudio(BaseModel):
     type: Literal["audio_url"]
-    audio_url: SFTChatDataAudioURL
+    audio_url: SFTChatDataURL
+
+
+class SFTChatDataVideo(BaseModel):
+    type: Literal["video_url"]
+    video_url: SFTChatDataURL
 
 
 # Hf dataset needs field to be the same across columns
 class HFDataContent(BaseModel):
-    type: Literal["text", "image_url", "audio_url"]
+    type: Literal["text", "image_url", "audio_url", "video_url"]
     text: str
-    image_url: SFTChatDataImageURL
+    image_url: SFTChatDataURL
 
 
 SFTChatDataContent = Union[
-    SFTChatDataText, SFTChatDataImage, SFTChatDataAudio, HFDataContent
+    SFTChatDataText, SFTChatDataImage, SFTChatDataAudio, SFTChatDataVideo, HFDataContent
 ]
 
 
