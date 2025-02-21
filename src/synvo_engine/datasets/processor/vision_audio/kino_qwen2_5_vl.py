@@ -41,7 +41,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         )
 
         image_inputs = {}
-        video_inputs = {}
+        videos_inputs = {}
         audio_inputs = {}
 
         if images is not None:
@@ -71,7 +71,38 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             num_image_tokens = None
 
         if videos is not None:
-            raise NotImplementedError
+            videos_inputs = self.processor.image_processor(
+                images=None,
+                videos=videos,
+                **output_kwargs["images_kwargs"],
+                return_tensors="pt",
+            )
+            video_grid_thw = videos_inputs["video_grid_thw"]
+
+            fps = output_kwargs["videos_kwargs"].pop("fps", 2.0)
+            if isinstance(fps, (int, float)):
+                second_per_grid_ts = [
+                    self.processor.image_processor.temporal_patch_size / fps
+                ] * len(video_grid_thw)
+            elif hasattr(fps, "__len__") and len(fps) == len(video_grid_thw):
+                second_per_grid_ts = [
+                    self.processor.image_processor.temporal_patch_size / tmp
+                    for tmp in fps
+                ]
+            else:
+                raise ValueError(
+                    f"The length of fps ({len(fps) if hasattr(fps, '__len__') else fps}) must be equal to the length of video_grid_thw ({len(video_grid_thw)}) or fps should be a single number."
+                )
+            videos_inputs.update(
+                {"second_per_grid_ts": torch.tensor(second_per_grid_ts)}
+            )
+            merge_length = self.processor.image_processor.merge_size**2
+            num_video_tokens = [
+                (video_grid_thw[index].prod() // merge_length)
+                for index in range(len(video_grid_thw))
+            ]
+        else:
+            num_video_tokens = None
 
         if audios is not None:
             audio_inputs = self.processor.audio_processor(
@@ -95,6 +126,7 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             hf_messages,
             num_image_tokens,
             num_audio_tokens,
+            num_video_tokens,
             system_message=system_message,
             add_system_prompt=add_system_prompt,
             add_generation_prompt=add_generation_prompt,
@@ -105,6 +137,9 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         if audios is not None:
             inputs["audio_values"] = audio_inputs["audio_values"]
             inputs["audio_attention_mask"] = audio_inputs["audio_attention_mask"]
+        if videos is not None:
+            for key, value in videos_inputs.items():
+                inputs[key] = value
 
         return inputs
 
@@ -113,20 +148,20 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         hf_messages,
         num_image_tokens: List[int],
         num_audio_tokens: List[int],
+        num_video_tokens: List[int],
         system_message: str = "You are a helpful assistant",
         add_system_prompt: bool = True,
         add_generation_prompt: bool = False,
     ):
-        image_token_index = self.processor.tokenizer.convert_tokens_to_ids(
-            self.processor.image_token
-        )
         special_tokens = self.processor.tokenizer.additional_special_tokens
         special_tokens.extend(["<|im_start|>", "<|im_end|>"])
         unmask_tokens_idx = [
             self.processor.tokenizer.convert_tokens_to_ids(t) for t in special_tokens
         ]
         input_id, target = [], []
-        start_from = 0
+        image_start_from = 0
+        audio_start_from = 0
+        video_start_from = 0
         if add_system_prompt:
             input_id += self.processor.tokenizer.apply_chat_template(
                 [{"role": "system", "content": system_message}],
@@ -136,15 +171,23 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
             role = message["role"]
             # Cautions, qwen2_5 vl tokenizer wrap into a list
             encode_id = self.processor.apply_chat_template([message], tokenize=True)[0]
-            if image_token_index in encode_id:
+            # Should be 3 if instead of if else, so that can expand for each case
+            if self.image_token_id in encode_id:
                 encode_id, used_images = self._expand_encode_id_image_tokens(
-                    encode_id, num_image_tokens, start_from
+                    encode_id, num_image_tokens, image_start_from
                 )
-                start_from += used_images
-            elif self.audio_token_id in encode_id:
+                image_start_from += used_images
+            if self.audio_token_id in encode_id:
                 encode_id, used_audio = self._expand_encode_id_audio_tokens(
-                    encode_id, num_audio_tokens
+                    encode_id, num_audio_tokens, audio_start_from
                 )
+                audio_start_from += used_audio
+            if self.video_token_id in encode_id:
+                encode_id, used_video = self._expand_encode_id_video_tokens(
+                    encode_id, num_video_tokens, video_start_from
+                )
+                video_start_from += used_video
+
             input_id += encode_id
             if role in ["user", "system"]:
                 target += [-100] * len(encode_id)
@@ -163,9 +206,11 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:
                 target[idx] = encode_id
-            if encode_id == image_token_index:
+            if encode_id == self.image_token_id:
                 target[idx] = -100
             if encode_id == self.audio_token_id:
+                target[idx] = -100
+            if encode_id == self.video_token_id:
                 target[idx] = -100
 
         input_id = torch.tensor(input_id, dtype=torch.long)

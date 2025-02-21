@@ -14,3 +14,4 @@ class DatasetConfig:
     packing: Optional[bool] = False
     packing_strategy: Optional[str] = None
     packing_length: Optional[int] = 32000
+    fps: Optional[int] = 1

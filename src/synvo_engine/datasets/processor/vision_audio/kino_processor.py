@@ -152,7 +152,13 @@ class KinoDataProcessor:
             self.processor.tokenizer.convert_tokens_to_ids(t) for t in special_tokens
         ]
         input_id, target = [], []
-        start_from = 0
+        # The purpose of start from is to record which mm token we are at. Supposing the format is interleaved
+        # Then we need to record this so that the mm token can be expanded correctly per conversation
+        # If the format is not interleaved, then nothing special (Say always at the from). Start from does not matter
+        image_start_from = 0
+        audio_start_from = 0
+        video_start_from = 0
+
         if add_system_prompt:
             input_id += self.processor.tokenizer.apply_chat_template(
                 [{"role": "system", "content": system_message}]
@@ -164,13 +170,16 @@ class KinoDataProcessor:
             encode_id = self.processor.apply_chat_template([message], tokenize=True)[0]
             if image_token_index in encode_id:
                 encode_id, used_images = self._expand_encode_id_image_tokens(
-                    encode_id, num_image_tokens, start_from
+                    encode_id, num_image_tokens, image_start_from
                 )
-                start_from += used_images
+                image_start_from += used_images
             elif self.audio_token_id in encode_id:
                 encode_id, used_audio = self._expand_encode_id_audio_tokens(
-                    encode_id, num_audio_tokens
+                    encode_id, num_audio_tokens, audio_start_from
                 )
+                audio_start_from += used_audio
+            elif self.video_token_id in encode_id:
+                raise NotImplementedError
             input_id += encode_id
             if role in ["user", "system"]:
                 target += [-100] * len(encode_id)
@@ -224,6 +233,7 @@ class KinoDataProcessor:
         self,
         encode_id: List[int],
         audio_token_num: List[int],
+        start_from: int = 0,
     ):
         audio_pos = [i for i, x in enumerate(encode_id) if x == self.audio_token_id]
         expanded_encode_id = []
@@ -232,7 +242,9 @@ class KinoDataProcessor:
             # Before image pos, no expand
             expanded_encode_id.extend(encode_id[prev:pos])
             # Image pos, expand
-            expanded_encode_id.extend([self.audio_token_id] * audio_token_num[idx])
+            expanded_encode_id.extend(
+                [self.audio_token_id] * audio_token_num[idx + start_from]
+            )
             prev = pos + 1
 
             if idx == len(audio_pos) - 1:
@@ -240,6 +252,30 @@ class KinoDataProcessor:
                 expanded_encode_id.extend(encode_id[prev:])
 
         return expanded_encode_id, len(audio_pos)
+
+    def _expand_encode_id_video_tokens(
+        self,
+        encode_id: List[int],
+        video_token_num: List[int],
+        start_from: int = 0,
+    ):
+        video_pos = [i for i, x in enumerate(encode_id) if x == self.video_token_id]
+        expanded_encode_id = []
+        prev = 0
+        for idx, pos in enumerate(video_pos):
+            # Before image pos, no expand
+            expanded_encode_id.extend(encode_id[prev:pos])
+            # Image pos, expand
+            expanded_encode_id.extend(
+                [self.video_token_id] * video_token_num[idx + start_from]
+            )
+            prev = pos + 1
+
+            if idx == len(video_pos) - 1:
+                # Last image pos, Add the rest to the end
+                expanded_encode_id.extend(encode_id[prev:])
+
+        return expanded_encode_id, len(video_pos)
 
     @property
     def image_token_id(self):
@@ -251,6 +287,12 @@ class KinoDataProcessor:
     def audio_token_id(self):
         return self.processor.tokenizer.convert_tokens_to_ids(
             self.processor.audio_token
+        )
+
+    @property
+    def video_token_id(self):
+        return self.processor.tokenizer.convert_tokens_to_ids(
+            self.processor.video_token
         )
 
     @property

@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import librosa
 import numpy as np
+import torch
 from datasets import Sequence, load_dataset
 from decord import VideoReader, cpu
 from PIL import Image, PngImagePlugin
@@ -92,6 +93,8 @@ class BaseDataset(Dataset):
                         cur_len += 2000
                     elif cont["type"] == "audio_url":
                         cur_len += 750
+                    elif cont["type"] == "video_url":
+                        cur_len += 5000
                     elif cont["type"] == "text":
                         cur_len += len(cont["text"].split()) * 1.25
                     else:
@@ -269,12 +272,17 @@ class BaseDataset(Dataset):
         else:
             vr = VideoReader(video_path[0], ctx=cpu(0))
         total_frames, video_fps = len(vr), vr.get_avg_fps()
-        uniform_sampled_frames = np.linspace(
-            0, total_frames - 1, max_frames_num, dtype=int
+        nframes = DataUtilities.smart_nframes(
+            total_frames, video_fps=video_fps, fps=fps
         )
+        uniform_sampled_frames = np.linspace(0, total_frames - 1, nframes, dtype=int)
         frame_idx = uniform_sampled_frames.tolist()
         spare_frames = vr.get_batch(frame_idx).asnumpy()
-        return spare_frames  # (frames, height, width, channels)
+        spare_frames = torch.tensor(spare_frames).permute(
+            0, 3, 1, 2
+        )  # Convert to TCHW format
+        sample_fps = nframes / max(total_frames, 1e-6) * video_fps
+        return spare_frames, sample_fps  # (frames, height, width, channels)
 
     @abstractmethod
     def load_from_json(self, data, data_folder=None):
