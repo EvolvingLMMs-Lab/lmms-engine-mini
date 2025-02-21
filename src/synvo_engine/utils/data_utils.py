@@ -80,11 +80,9 @@ class DataUtilities:
         Returns:
             int: the number of frames for video used for model inputs.
         """
-        min_frames = DataUtilities.ceil_by_factor(
-            ele.get("min_frames", FPS_MIN_FRAMES), FRAME_FACTOR
-        )
+        min_frames = DataUtilities.ceil_by_factor(FPS_MIN_FRAMES, FRAME_FACTOR)
         max_frames = DataUtilities.floor_by_factor(
-            ele.get("max_frames", min(FPS_MAX_FRAMES, total_frames)), FRAME_FACTOR
+            min(FPS_MAX_FRAMES, total_frames), FRAME_FACTOR
         )
         nframes = total_frames / video_fps * fps
         nframes = min(min(max(nframes, min_frames), max_frames), total_frames)

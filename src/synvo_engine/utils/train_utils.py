@@ -25,6 +25,10 @@ class TrainUtilities:
                     new_message["content"].append(
                         {"type": "audio", "audio_url": content["audio_url"]["url"]}
                     )
+                elif content["type"] == "video_url":
+                    new_message["content"].append(
+                        {"type": "video", "video_url": content["video_url"]["url"]}
+                    )
                 else:
                     new_message["content"].append(
                         {"type": "text", "text": content["text"]}
