@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from ...protocol import Processable
-from ...utils.train import TrainUtilities
+from ...utils.train_utils import TrainUtilities
 
 
 @dataclass
@@ -44,19 +44,17 @@ class VisionCollator:
             padding_value=-100,
         )
         attention_mask = input_ids.ne(self.processor.tokenizer.pad_token_id)
-        # Init pos id with (0, 1, 2,..., max_length) then repeat bs times
-        # Set those to zero with attention mask not equal to True
-        position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long).repeat(
-            input_ids.shape[0], 1
-        )
-        position_ids[~attention_mask] = 0
+        # position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long).repeat(
+        # input_ids.shape[0], 1
+        # )
+        # position_ids[~attention_mask] = 0
         batched_inputs = {}
         for key, values in inputs.items():
             batched_inputs[key] = torch.concatenate(values, dim=0)
         batched_inputs["input_ids"] = input_ids
         batched_inputs["labels"] = labels
         batched_inputs["attention_mask"] = attention_mask
-        batched_inputs["position_ids"] = position_ids
+        # batched_inputs["position_ids"] = position_ids
 
         return batched_inputs
 

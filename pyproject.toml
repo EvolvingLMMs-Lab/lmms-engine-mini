@@ -34,7 +34,8 @@ dependencies = [
     "pydantic",
     "jsonlines",
     "librosa",
-    "pynvml"
+    "pynvml",
+    "decord",
 ]
 
 [project.optional-dependencies]

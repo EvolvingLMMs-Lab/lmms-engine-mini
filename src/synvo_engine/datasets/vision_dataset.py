@@ -15,7 +15,7 @@ from transformers import AutoProcessor
 
 from ..utils import Logging
 from ..utils.data_utils import DataUtilities
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .base_dataset import BaseDataset
 from .collator import VisionCollator
 from .config import DatasetConfig

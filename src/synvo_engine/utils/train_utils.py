@@ -5,7 +5,7 @@ import deepspeed
 import torch
 from transformers import AutoProcessor
 
-from ..logging_utils import Logging
+from .logging_utils import Logging
 
 
 class TrainUtilities:
@@ -24,6 +24,10 @@ class TrainUtilities:
                 elif content["type"] == "audio_url":
                     new_message["content"].append(
                         {"type": "audio", "audio_url": content["audio_url"]["url"]}
+                    )
+                elif content["type"] == "video_url":
+                    new_message["content"].append(
+                        {"type": "video", "video_url": content["video_url"]["url"]}
                     )
                 else:
                     new_message["content"].append(

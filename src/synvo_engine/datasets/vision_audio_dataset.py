@@ -5,7 +5,7 @@ import librosa
 import torch
 from PIL import Image
 
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .vision_dataset import VisionSFTDataset
 
 MAX_AUDIO_LENGTH = 30
@@ -15,8 +15,10 @@ class VisionAudioSFTDataset(VisionSFTDataset):
     def load_from_json(self, data, data_folder=None) -> Dict[str, torch.Tensor]:
         images = []
         audios = []
+        videos = []
         messages = data["messages"]
         new_messages = []
+        kwargs = {}
         for message in messages:
             new_content = []
             for idx, content in enumerate(message["content"]):
@@ -48,6 +50,17 @@ class VisionAudioSFTDataset(VisionSFTDataset):
                     for _ in range(len(audio_splits)):
                         new_content.append(content)
                     audios.extend(audio_splits)
+                elif content["type"] == "video_url":
+                    # Loading videos with fps
+                    frames, sample_fps = self.load_videos(
+                        content["video_url"]["url"],
+                        data_folder=data_folder,
+                        fps=self.config.fps,
+                    )
+                    videos.append(frames)
+                    # Update kwargs
+                    kwargs["fps"] = sample_fps
+                    new_content.append(content)
                 else:
                     new_content.append(content)
             message["content"] = new_content
@@ -59,11 +72,15 @@ class VisionAudioSFTDataset(VisionSFTDataset):
             images = None
         if len(audios) == 0:
             audios = None
+        if len(videos) == 0:
+            videos = None
         inputs = self.processor.process(
             images=images,
             hf_messages=hf_messages,
             audios=audios,
+            videos=videos,
             sampling_rate=self.processor.sampling_rate,
+            **kwargs,
         )
         return inputs
 

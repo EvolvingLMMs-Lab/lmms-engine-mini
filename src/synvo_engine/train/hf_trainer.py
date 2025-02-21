@@ -5,7 +5,7 @@ import torch
 from transformers import Trainer
 
 from ..utils import Logging
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .base_trainer import BaseTrainer
 from .config import TrainerConfig
 from .custom import LLaVADPOTrainer, LLaVAGRPOTrainer, LLaVATrainer

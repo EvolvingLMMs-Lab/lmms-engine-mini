@@ -79,7 +79,7 @@ if is_sagemaker_mp_enabled():
 else:
     IS_SAGEMAKER_MP_POST_1_10 = False
 
-from ...utils.train import TrainUtilities
+from ...utils.train_utils import TrainUtilities
 from .muon import Muon
 
 

@@ -14,3 +14,6 @@ class DatasetConfig:
     packing: Optional[bool] = False
     packing_strategy: Optional[str] = None
     packing_length: Optional[int] = 32000
+    video_sampling_strategy: Optional[Literal["fps", "frame_num"]] = "fps"
+    frame_num: Optional[int] = 64
+    fps: Optional[int] = 1

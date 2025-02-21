@@ -9,7 +9,7 @@ from ..models.kernels import (
     _apply_liger_kernel_to_instance as _apply_liger_kernel_to_custom_instance,
 )
 from ..utils import Logging
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .config import TrainerConfig
 
 

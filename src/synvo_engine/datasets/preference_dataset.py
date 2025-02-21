@@ -5,7 +5,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-from ..utils.train import TrainUtilities
+from ..utils.train_utils import TrainUtilities
 from .base_dataset import BaseDataset
 from .collator import PreferenceCollator
 from .config import DatasetConfig
