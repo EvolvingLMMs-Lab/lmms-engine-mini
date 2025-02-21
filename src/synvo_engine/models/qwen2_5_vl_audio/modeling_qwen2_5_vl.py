@@ -1777,6 +1777,12 @@ class KinoQwen2_5_VLForConditionalGeneration(
         video_token_id = self.config.video_token_id
         vision_start_token_id = self.config.vision_start_token_id
         mrope_position_deltas = []
+        # Move second_per_grid_ts to cpu if it has been prepared before
+        if second_per_grid_ts is not None and isinstance(
+            second_per_grid_ts, torch.Tensor
+        ):
+            if second_per_grid_ts.device.type != "cpu":
+                second_per_grid_ts = second_per_grid_ts.cpu()
         if input_ids is not None and (
             image_grid_thw is not None or video_grid_thw is not None
         ):
