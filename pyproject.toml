@@ -36,6 +36,7 @@ dependencies = [
     "librosa",
     "pynvml",
     "decord",
+    "torchvision",
 ]
 
 [project.optional-dependencies]

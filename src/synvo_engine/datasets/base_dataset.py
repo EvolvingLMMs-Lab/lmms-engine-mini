@@ -1,7 +1,7 @@
 import os
 from abc import abstractmethod
 from copy import deepcopy
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import librosa
 import numpy as np
@@ -10,6 +10,8 @@ from datasets import Sequence, load_dataset
 from decord import VideoReader, cpu
 from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
+from torchvision import io, transforms
+from torchvision.transforms import InterpolationMode
 
 from ..utils import Logging
 from ..utils.data_utils import DataUtilities
@@ -263,14 +265,28 @@ class BaseDataset(Dataset):
         return audio
 
     def load_videos(
-        self, video_path: str, data_folder=None, fps: int = 1.0
-    ) -> np.ndarray:
+        self, video_path: str, data_folder=None, fps: int = 1
+    ) -> Tuple[np.ndarray, float]:
         if data_folder is not None:
             video_path = os.path.join(data_folder, video_path)
+
+        if self.config.video_backend == "decord":
+            return self.load_video_decord(video_path, fps)
+        elif self.config.video_backend == "torchvision":
+            return self.load_video_torchvision(video_path, fps)
+        else:
+            raise ValueError(f"Video backend {self.config.video_backend} not supported")
+
+    def load_video_decord(
+        self,
+        video_path: str,
+        fps: int,
+    ) -> Tuple[np.ndarray, float]:
         if type(video_path) == str:
             vr = VideoReader(video_path, ctx=cpu(0))
         else:
             vr = VideoReader(video_path[0], ctx=cpu(0))
+
         total_frames, video_fps = len(vr), vr.get_avg_fps()
         if self.config.video_sampling_strategy == "fps":
             nframes = DataUtilities.smart_nframes(
@@ -290,6 +306,28 @@ class BaseDataset(Dataset):
         )  # Convert to TCHW format
         sample_fps = nframes / max(total_frames, 1e-6) * video_fps
         return spare_frames, sample_fps  # (frames, height, width, channels)
+
+    def load_video_torchvision(
+        self,
+        video_path: str,
+        fps: int,
+    ) -> Tuple[np.ndarray, float]:
+        # Right now by default load the whole video
+        video, audio, info = io.read_video(
+            video_path,
+            start_pts=0.0,
+            end_pts=None,
+            pts_unit="sec",
+            output_format="TCHW",
+        )
+        total_frames, video_fps = video.size(0), info["video_fps"]
+        nframes = DataUtilities.smart_nframes(
+            total_frames=total_frames, video_fps=video_fps, fps=fps
+        )
+        idx = torch.linspace(0, total_frames - 1, nframes).round().long()
+        sample_fps = nframes / max(total_frames, 1e-6) * video_fps
+        video = video[idx]
+        return video, sample_fps
 
     @abstractmethod
     def load_from_json(self, data, data_folder=None):
