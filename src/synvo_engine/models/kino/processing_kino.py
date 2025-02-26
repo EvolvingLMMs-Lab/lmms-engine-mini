@@ -526,7 +526,7 @@ class KinoProcessor(ProcessorMixin):
                     "{% for content in message['content'] %}"
                         "{% if 'audio' in content or 'audio_url' in content %}"
                             "{% set audio_count.value = audio_count.value + 1 %}"
-                            "Audio {{ audio_count.value }}: <|AUDIO|>\n"
+                            "<|AUDIO|>\n"
                         "{% elif content['type'] == 'image' or 'image' in content or 'image_url' in content %}"
                             "{% set image_count.value = image_count.value + 1 %}"
                             "{% if add_vision_id %}"
