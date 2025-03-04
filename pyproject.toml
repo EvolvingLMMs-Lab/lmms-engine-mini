@@ -23,7 +23,7 @@ license = { text = "MIT" }
 dependencies = [
     "datasets",
     "hf_transfer",
-    "transformers @ git+https://github.com/huggingface/transformers",
+    "transformers==4.49.0",
     "accelerate",
     "pillow",
     "peft",
@@ -36,6 +36,7 @@ dependencies = [
     "librosa",
     "pynvml",
     "decord",
+    "torch==2.5.1",
     "torchvision",
 ]
 
