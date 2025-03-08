@@ -152,11 +152,13 @@ class LLaVATrainer(Trainer):
                 )
             else:
                 lengths = None
-            model_input_name = (
-                self.processing_class.model_input_names[0]
-                if self.processing_class is not None
-                else None
-            )
+            # Hard code here because we use our own processing class
+            model_input_name = None
+            # model_input_name = (
+            # self.processing_class.model_input_names[0]
+            # if self.processing_class is not None
+            # else None
+            # )
             return LengthGroupedSampler(
                 self.args.train_batch_size * self.args.gradient_accumulation_steps,
                 dataset=self.train_dataset,
