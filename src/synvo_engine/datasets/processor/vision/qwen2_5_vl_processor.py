@@ -40,3 +40,7 @@ class Qwen2_5_VLDataProcessor(KinoQwen2_5_DataProcessor):
             add_generation_prompt,
             **kwargs,
         )
+
+    @property
+    def audio_token_id(self):
+        return None
