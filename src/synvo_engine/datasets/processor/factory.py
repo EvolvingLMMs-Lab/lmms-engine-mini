@@ -2,7 +2,7 @@ from typing import Union, overload
 
 from ...protocol import Processable
 from .config import ProcessorConfig
-from .vision import LLaVADataProcessor, Qwen2VLDataProcessor
+from .vision import LLaVADataProcessor, Qwen2_5_VLDataProcessor, Qwen2VLDataProcessor
 from .vision_audio import KinoDataProcessor, KinoQwen2_5_DataProcessor
 
 
@@ -40,6 +40,8 @@ class ProcessorFactory:
             return Qwen2VLDataProcessor(processor_config)
         elif processor_config.processor_type == "llava":
             return LLaVADataProcessor(processor_config)
+        elif processor_config.processor_type == "qwen2_5_vl":
+            return Qwen2_5_VLDataProcessor(processor_config)
         else:
             raise NotImplementedError(
                 f"Processor {processor_config.processor_name} not implemented"
