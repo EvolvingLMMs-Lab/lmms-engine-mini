@@ -80,8 +80,6 @@ def lce_forward(
 
             image_embeds = image_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
             inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
-        elif self.training:
-            inputs_embeds = self.add_fake_gradient_visual(inputs_embeds)
 
         if pixel_values_videos is not None:
             pixel_values_videos = pixel_values_videos.type(self.visual.dtype)
@@ -100,7 +98,8 @@ def lce_forward(
 
             video_embeds = video_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
             inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
-        elif self.training:
+
+        if self.training and (pixel_values is None) and (pixel_values_videos is None):
             inputs_embeds = self.add_fake_gradient_visual(inputs_embeds)
 
         # Embed audio features
