@@ -67,12 +67,85 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         self.post_init()
 
     def prepare_dummy_pixel_inputs(self):
-        pixel_values = torch.zeros((4, self.config.vision_config.hidden_size))
-        return pixel_values
+        channel = 3
+        patch_size = self.config.vision_config.patch_size
+        temporal_patch_size = self.config.vision_config.temporal_patch_size
+        hidden_dim = channel * patch_size * patch_size * temporal_patch_size
+        pixel_values = torch.zeros((4, hidden_dim), requires_grad=True)
+        image_grid_thw = torch.tensor([[1, 2, 2]], dtype=torch.int64)
+        return pixel_values, image_grid_thw
+
+    def prepare_audio_values(self, audio_values, audio_attention_mask):
+        (
+            audio_feat_lengths,
+            audio_output_lengths,
+        ) = self.audio_tower._get_feat_extract_output_lengths(
+            audio_attention_mask.sum(-1)
+        )
+        batch_size, _, max_mel_seq_len = audio_values.shape
+        max_seq_len = (max_mel_seq_len - 2) // 2 + 1
+        # Create a sequence tensor of shape (batch_size, max_seq_len)
+        seq_range = (
+            torch.arange(
+                0,
+                max_seq_len,
+                dtype=audio_feat_lengths.dtype,
+                device=audio_feat_lengths.device,
+            )
+            .unsqueeze(0)
+            .expand(batch_size, max_seq_len)
+        )
+        lengths_expand = audio_feat_lengths.unsqueeze(1).expand(batch_size, max_seq_len)
+        # Create mask
+        padding_mask = seq_range >= lengths_expand
+
+        audio_attention_mask_ = padding_mask.view(batch_size, 1, 1, max_seq_len).expand(
+            batch_size, 1, max_seq_len, max_seq_len
+        )
+        audio_attention_mask = audio_attention_mask_.to(
+            dtype=self.audio_tower.conv1.weight.dtype,
+            device=self.audio_tower.conv1.weight.device,
+        )
+        audio_attention_mask[audio_attention_mask_] = float("-inf")
+
+        audio_outputs = self.audio_tower(
+            audio_values, attention_mask=audio_attention_mask
+        )
+        selected_audio_feature = audio_outputs.last_hidden_state
+        audio_features = self.audio_modal_projector(selected_audio_feature)
+        return audio_features, audio_output_lengths
 
     def prepare_dummy_audio_inputs(self):
-        audio_features = torch.zeros((4, self.config.audio_config.d_model))
-        return audio_features
+        num_mel_bins = self.config.audio_config.num_mel_bins
+        max_source_positions = self.config.audio_config.max_source_positions
+        audio_values = torch.zeros(
+            (1, num_mel_bins, max_source_positions * 2), requires_grad=True
+        )
+        audio_attention_mask = torch.ones(
+            (1, audio_values.shape[-1]), dtype=torch.float16
+        )
+        return audio_values, audio_attention_mask
+
+    def add_fake_gradient_visual(self, inputs_embeds):
+        pixel_values, image_grid_thw = self.prepare_dummy_pixel_inputs()
+        pixel_values = pixel_values.to(
+            device=inputs_embeds.device, dtype=inputs_embeds.dtype
+        )
+        image_grid_thw = image_grid_thw.to(device=inputs_embeds.device)
+        image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
+        inputs_embeds += image_embeds * 0
+        return inputs_embeds
+
+    def add_fake_gradient_audio(self, inputs_embeds):
+        audio_values, audio_attention_mask = self.prepare_dummy_audio_inputs()
+        audio_values = audio_values.to(
+            device=inputs_embeds.device, dtype=inputs_embeds.dtype
+        )
+        audio_features, audio_output_lengths = self.prepare_audio_values(
+            audio_values, audio_attention_mask
+        )
+        inputs_embeds += audio_features.sum(dim=1) * 0
+        return inputs_embeds
 
     def forward(
         self,
@@ -131,6 +204,8 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                     inputs_embeds.device, inputs_embeds.dtype
                 )
                 inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+            elif self.training:
+                inputs_embeds = self.add_fake_gradient_visual(inputs_embeds)
 
             if pixel_values_videos is not None:
                 pixel_values_videos = pixel_values_videos.type(self.visual.dtype)
@@ -151,48 +226,14 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                     inputs_embeds.device, inputs_embeds.dtype
                 )
                 inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
+            elif self.training:
+                inputs_embeds = self.add_fake_gradient_visual(inputs_embeds)
 
             # Embed audio features
             if audio_values is not None:
-                (
-                    audio_feat_lengths,
-                    audio_output_lengths,
-                ) = self.audio_tower._get_feat_extract_output_lengths(
-                    audio_attention_mask.sum(-1)
+                audio_features, audio_output_lengths = self.prepare_audio_values(
+                    audio_values, audio_attention_mask
                 )
-                batch_size, _, max_mel_seq_len = audio_values.shape
-                max_seq_len = (max_mel_seq_len - 2) // 2 + 1
-                # Create a sequence tensor of shape (batch_size, max_seq_len)
-                seq_range = (
-                    torch.arange(
-                        0,
-                        max_seq_len,
-                        dtype=audio_feat_lengths.dtype,
-                        device=audio_feat_lengths.device,
-                    )
-                    .unsqueeze(0)
-                    .expand(batch_size, max_seq_len)
-                )
-                lengths_expand = audio_feat_lengths.unsqueeze(1).expand(
-                    batch_size, max_seq_len
-                )
-                # Create mask
-                padding_mask = seq_range >= lengths_expand
-
-                audio_attention_mask_ = padding_mask.view(
-                    batch_size, 1, 1, max_seq_len
-                ).expand(batch_size, 1, max_seq_len, max_seq_len)
-                audio_attention_mask = audio_attention_mask_.to(
-                    dtype=self.audio_tower.conv1.weight.dtype,
-                    device=self.audio_tower.conv1.weight.device,
-                )
-                audio_attention_mask[audio_attention_mask_] = float("-inf")
-
-                audio_outputs = self.audio_tower(
-                    audio_values, attention_mask=audio_attention_mask
-                )
-                selected_audio_feature = audio_outputs.last_hidden_state
-                audio_features = self.audio_modal_projector(selected_audio_feature)
                 n_audio_tokens = (input_ids == self.config.audio_token_id).sum().item()
                 n_audio_features = audio_output_lengths.sum()
                 if n_audio_tokens != n_audio_features:
@@ -225,6 +266,8 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                 inputs_embeds = inputs_embeds.masked_scatter(
                     audio_mask, unpadded_audio_features
                 )
+            elif self.training:
+                inputs_embeds = self.add_fake_gradient_audio(inputs_embeds)
 
             if attention_mask is not None:
                 attention_mask = attention_mask.to(inputs_embeds.device)

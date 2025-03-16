@@ -36,8 +36,8 @@ def _patch_rms_norm_module(
 
 def apply_liger_kernel_to_kino_qwen2_5_vl(
     rope: bool = True,
-    cross_entropy: bool = False,
-    fused_linear_cross_entropy: bool = True,
+    cross_entropy: bool = True,
+    fused_linear_cross_entropy: bool = False,
     rms_norm: bool = True,
     swiglu: bool = True,
     model: PreTrainedModel = None,
@@ -60,9 +60,10 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         cross_entropy and fused_linear_cross_entropy
     ), "cross_entropy and fused_linear_cross_entropy cannot both be True."
 
+    from transformers.models.qwen2_5_vl import modeling_qwen2_5_vl
     from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLModel
 
-    from ..qwen2_5_vl_audio import modeling_qwen2_5_vl
+    from ..qwen2_5_vl_audio import modeling_qwen2_5_vl as kino_modeling_qwen2_5_vl
     from .qwen2_5_vl_liger import lce_forward as qwen2_5_vl_lce_forward
 
     if rope:
@@ -74,7 +75,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     if cross_entropy:
         modeling_qwen2_5_vl.CrossEntropyLoss = LigerCrossEntropyLoss
     if fused_linear_cross_entropy:
-        modeling_qwen2_5_vl.KinoQwen2_5_VLForConditionalGeneration.forward = (
+        kino_modeling_qwen2_5_vl.KinoQwen2_5_VLForConditionalGeneration.forward = (
             qwen2_5_vl_lce_forward
         )
     if swiglu:
