@@ -16,6 +16,7 @@ from transformers.utils import (
 from synvo_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
     Qwen2_5_VLCausalLMOutputWithPast,
 )
+from synvo_engine.utils import Logging
 
 try:
     from liger_kernel.transformers.fused_linear_cross_entropy import (
@@ -143,6 +144,15 @@ def lce_forward(
         if attention_mask is not None:
             attention_mask = attention_mask.to(inputs_embeds.device)
 
+    # This is so fucking strange, but I don't know why. Maybe printing out makes the leaf node to init?
+    # Fuck I don't know. 你妈的，为什么
+    # Anyway, I choose this way to make the stdout don't include these ugly printing
+    # Fuck hope it works. Otherwise, it stucks. I tried getattr, direct access, but can not
+    # Add fake gradient then logout seems can work. Really weird
+    if self.training:
+        Logging.null_logging(self.audio_tower.conv1.weight.grad)
+        Logging.null_logging(self.audio_modal_projector.linear.weight.grad)
+        Logging.null_logging(self.visual.patch_embed.proj.weight.grad)
     # if we get 4D attention mask we cannot calculate rope deltas anymore. TODO @raushan fixme
     if position_ids is None and (attention_mask is None or attention_mask.ndim == 2):
         # calculate RoPE index once per generation in the pre-fill stage only
