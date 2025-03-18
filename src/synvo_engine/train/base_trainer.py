@@ -66,7 +66,7 @@ class BaseTrainer(ABC):
             _apply_liger_kernel_to_custom_instance(self.model)
         # If the model itself is already in liger kernel,
         # we should not apply the liger kernel again
-        if model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
+        elif model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:
             Logging.info(f"Try to apply liger kernel on the model {model_type}")
             _apply_liger_kernel_to_instance(self.model)
         else:
