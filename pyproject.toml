@@ -23,7 +23,7 @@ license = { text = "MIT" }
 dependencies = [
     "datasets",
     "hf_transfer",
-    "transformers==4.49.0",
+    "transformers @ git+https://github.com/huggingface/transformers.git",
     "accelerate",
     "pillow",
     "peft",

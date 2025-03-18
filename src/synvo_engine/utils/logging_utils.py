@@ -1,3 +1,5 @@
+from contextlib import redirect_stdout
+
 import torch.distributed as dist
 from loguru import logger
 
@@ -34,3 +36,8 @@ class Logging:
                 logger.debug(msg)
         else:
             logger.debug(msg)
+
+    @staticmethod
+    def null_logging(msg):
+        with redirect_stdout(None):
+            print(msg)
