@@ -18,13 +18,14 @@ class AccelerateMegatronTrainer(BaseTrainer):
     def build(self):
         super().build()
         self.accelerator = self._build_accelerator()
+        self.trainer_args = self.config.trainer_args
 
     def _build_accelerator(self):
         accelerator_log_kwargs = {}
-        accelerator_log_kwargs["log_with"] = self.config.report_to
-        accelerator_log_kwargs["project_dir"] = self.config.output_dir
+        accelerator_log_kwargs["log_with"] = self.trainer_args.report_to
+        accelerator_log_kwargs["project_dir"] = self.trainer_args.output_dir
         accelerator = Accelerator(
-            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+            gradient_accumulation_steps=self.trainer_args.gradient_accumulation_steps,
             **accelerator_log_kwargs,
         )
         return accelerator
@@ -51,7 +52,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
         self.completed_steps = 0
         self.starting_epoch = 0
 
-        for epoch in range(self.starting_epoch, self.config.num_train_epochs):
+        for epoch in range(self.starting_epoch, self.trainer_args.num_train_epochs):
             model_wrapped.train()
             self.training_loop(
                 train_dataloader_wrapped,
@@ -62,9 +63,9 @@ class AccelerateMegatronTrainer(BaseTrainer):
 
         self.accelerator.end_training()
         self.accelerator.wait_for_everyone()
-        self.accelerator.save_state(self.config.output_dir)
+        self.accelerator.save_state(self.trainer_args.output_dir)
         if self.accelerator.is_main_process:
-            self.train_dataset.processor.save_pretrained(self.config.output_dir)
+            self.train_dataset.processor.save_pretrained(self.trainer_args.output_dir)
 
     def training_loop(self, train_dataloader, model, optimizer, lr_scheduler):
         total_loss = 0
@@ -74,14 +75,16 @@ class AccelerateMegatronTrainer(BaseTrainer):
             if self.accelerator.sync_gradients:
                 self.progress_bar.update(1)
                 self.completed_steps += 1
-            if isinstance(self.config.checkpointing_steps, int):
+            if isinstance(self.trainer_args.save_steps, int):
                 if (
-                    self.completed_steps % self.config.checkpointing_steps == 0
+                    self.completed_steps % self.trainer_args.save_steps == 0
                     and self.accelerator.sync_gradients
                 ):
                     output_dir = f"step_{self.completed_steps}"
                     if self.config.output_dir is not None:
-                        output_dir = os.path.join(self.config.output_dir, output_dir)
+                        output_dir = os.path.join(
+                            self.trainer_args.output_dir, output_dir
+                        )
                     self.accelerator.save_state(output_dir)
             if self.completed_steps >= self.config.max_train_steps:
                 break
@@ -109,7 +112,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
         lr_scheduler = MegatronLMDummyScheduler(
             optimizer=self.optimizer,
             total_num_steps=self.config.max_train_steps,
-            warmup_num_steps=self.config.num_warmup_steps,
+            warmup_num_steps=self.trainer_args.warmup_steps,
         )
         return lr_scheduler
 
@@ -121,7 +124,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
         collator = self.train_dataset.get_collator()
         train_dataloader = DataLoader(
             self.train_dataset,
-            self.config.per_device_batch_size,
+            self.trainer_args.per_device_train_batch_size,
             shuffle=False,
             collate_fn=collator,
         )
@@ -138,7 +141,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
                     for n, p in self.model.named_parameters()
                     if not any(nd in n for nd in no_decay)
                 ],
-                "weight_decay": self.config.weight_decay,
+                "weight_decay": self.trainer_args.weight_decay,
             },
             {
                 "params": [
@@ -150,7 +153,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
             },
         ]
         optimizer = torch.optim.AdamW(
-            optimizer_grouped_parameters, lr=self.config.learning_rate
+            optimizer_grouped_parameters, lr=self.trainer_args.learning_rate
         )
         return optimizer
 
@@ -163,9 +166,10 @@ class AccelerateMegatronTrainer(BaseTrainer):
             # Scheduler and math around the number of training steps.
             self.overrode_max_train_steps = False
             num_update_steps_per_epoch = math.ceil(
-                len(self.train_dataloader) / self.config.gradient_accumulation_steps
+                len(self.train_dataloader)
+                / self.trainer_args.gradient_accumulation_steps
             )
-            if self.config.max_train_steps is None:
+            if getattr(self.config, "max_train_steps", None) is None:
                 self.config.max_train_steps = (
                     self.config.num_train_epochs * num_update_steps_per_epoch
                 )
@@ -174,14 +178,14 @@ class AccelerateMegatronTrainer(BaseTrainer):
         else:
             # We need to recalculate our total training steps as the size of the training dataloader may have changed.
             num_update_steps_per_epoch = math.ceil(
-                len(train_dataloader) / self.config.gradient_accumulation_steps
+                len(train_dataloader) / self.trainer_args.gradient_accumulation_steps
             )
             if self.overrode_max_train_steps:
                 self.config.max_train_steps = (
-                    self.config.num_train_epochs * num_update_steps_per_epoch
+                    self.trainer_args.num_train_epochs * num_update_steps_per_epoch
                 )
             # Afterwards we recalculate our number of training epochs
-            self.config.num_train_epochs = math.ceil(
+            self.trainer_args.num_train_epochs = math.ceil(
                 self.config.max_train_steps / num_update_steps_per_epoch
             )
             return self.config.max_train_steps
@@ -195,7 +199,7 @@ class AccelerateMegatronTrainer(BaseTrainer):
 
     def get_checkpointing_steps(self):
         # Figure out how many steps we should save the Accelerator states
-        checkpointing_steps = self.config.checkpointing_steps
+        checkpointing_steps = self.trainer_args.save_steps
         if checkpointing_steps is not None and checkpointing_steps.isdigit():
             checkpointing_steps = int(checkpointing_steps)
         return checkpointing_steps
@@ -203,4 +207,4 @@ class AccelerateMegatronTrainer(BaseTrainer):
     def init_trackers(self):
         experiment_config = self.config.__dict__
         experiment_config.pop("run_name")
-        self.accelerator.init_trackers(self.config.run_name, experiment_config)
+        self.accelerator.init_trackers(self.trainer_args.run_name, experiment_config)
