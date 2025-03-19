@@ -898,6 +898,7 @@ class LLaVATrainer(Trainer):
                     and step % (args.gradient_accumulation_steps * gc_interval) == 0
                 ):
                     gc.collect()
+                    torch.cuda.empty_cache()
 
                 # cur_idx[cur_batch_idx] = tr_loss_step.item()
 
