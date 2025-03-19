@@ -211,6 +211,8 @@ class KinoQwen2_5_VLConfig(PretrainedConfig):
         image_token_id=151655,
         video_token_id=151656,
         audio_token_id=151657,
+        vision_lora=None,
+        audio_lora=None,
         **kwargs,
     ):
         if isinstance(vision_config, dict):
@@ -278,6 +280,8 @@ class KinoQwen2_5_VLConfig(PretrainedConfig):
         self.image_token_id = image_token_id
         self.video_token_id = video_token_id
         self.audio_token_id = audio_token_id
+        self.vision_lora = vision_lora
+        self.audio_lora = audio_lora
 
         super().__init__(tie_word_embeddings=tie_word_embeddings, **kwargs)
 
