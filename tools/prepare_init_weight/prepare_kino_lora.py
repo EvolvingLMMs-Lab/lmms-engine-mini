@@ -1,4 +1,5 @@
 import argparse
+import gc
 from pathlib import Path
 
 import requests
@@ -61,6 +62,13 @@ def prepare_weights_for_kino(
             lora_dropout=0.1,
             task_type="CAUSAL_LM",
         )
+        text_lora = LoraConfig(
+            r=256,
+            target_modules="layers.*((self_attn\\.((q|k|v|o)_proj))|(mlp\\.(gate|down)_proj))",
+            lora_alpha=512,
+            lora_dropout=0.1,
+            task_type="CAUSAL_LM",
+        )
 
         vision_adapter = get_peft_model(
             kino_model.model, peft_config=vision_lora, adapter_name="vision"
@@ -68,15 +76,22 @@ def prepare_weights_for_kino(
         audio_adapter = get_peft_model(
             kino_model.model, peft_config=audio_lora, adapter_name="audio"
         )
+        text_adapter = get_peft_model(
+            kino_model.model, peft_config=text_lora, adapter_name="text"
+        )
         config = kino_model.config
         config.vision_lora = vision_lora.to_dict()
         config.audio_lora = audio_lora.to_dict()
+        config.text_lora = text_lora.to_dict()
 
         print(f"Saving model and processor to {pytorch_dump_folder_path}")
         Path(pytorch_dump_folder_path).mkdir(exist_ok=True)
         kino_model.save_pretrained(pytorch_dump_folder_path)
         processor.save_pretrained(pytorch_dump_folder_path)
         config.save_pretrained(pytorch_dump_folder_path)
+        del kino_model, processor, config
+        gc.collect()
+        torch.cuda.empty_cache()
 
     model = KinoQwen2_5_VLForConditionalGeneration.from_pretrained(
         pytorch_dump_folder_path, torch_dtype="auto", device_map="cuda:0"
