@@ -139,10 +139,7 @@ class BaseTrainer(ABC):
                 for n, p in module.named_parameters():
                     if "base_layer" in n:
                         p.requires_grad = False
-                        Logging.info(f"Freeze {n} in LoraLayer")
                     elif "lora" in n:
                         p.requires_grad = True
-                        Logging.info(f"Unfreeze {n} in LoraLayer")
                     else:
                         p.requires_grad = True
-                        Logging.info(f"Not sure what {n} is, Unfreeze {n} in LoraLayer")

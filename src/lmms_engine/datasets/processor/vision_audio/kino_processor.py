@@ -299,16 +299,16 @@ class KinoDataProcessor:
         if audios is not None:
             if images is not None or videos is not None:
                 # Audio Vision
-                input_mode = torch.tensor([3])
+                input_mode = torch.tensor([3], dtype=torch.int8)
             else:
                 # Audio
-                input_mode = torch.tensor([1])
+                input_mode = torch.tensor([1], dtype=torch.int8)
         elif images is not None or videos is not None:
             # Vision
-            input_mode = torch.tensor([2])
+            input_mode = torch.tensor([2], dtype=torch.int8)
         else:
             # Text
-            input_mode = torch.tensor([0])
+            input_mode = torch.tensor([0], dtype=torch.int8)
         return input_mode
 
     @property
