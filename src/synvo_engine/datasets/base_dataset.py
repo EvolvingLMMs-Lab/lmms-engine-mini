@@ -92,13 +92,22 @@ class BaseDataset(Dataset):
                 content = message["content"]
                 for cont in content:
                     if cont["type"] == "image_url":
-                        cur_len += 2000
+                        if "precomputed_tokens" in cont:
+                            cur_len += cont["precomputed_tokens"]
+                        else:
+                            cur_len += 2000
                     elif cont["type"] == "audio_url":
-                        cur_len += 750
+                        if "precomputed_tokens" in cont:
+                            cur_len += cont["precomputed_tokens"]
+                        else:
+                            cur_len += 750
                     elif cont["type"] == "video_url":
-                        cur_len += 5000
+                        if "precomputed_tokens" in cont:
+                            cur_len += cont["precomputed_tokens"]
+                        else:
+                            cur_len += 5000
                     elif cont["type"] == "text":
-                        cur_len += len(cont["text"].split()) * 1.25
+                        cur_len += len(cont["text"].split()) * 1.5
                     else:
                         raise TypeError(
                             f"Encountered invalid content type {cont['type']}"
