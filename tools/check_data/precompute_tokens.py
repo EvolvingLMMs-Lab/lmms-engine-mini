@@ -86,6 +86,8 @@ def check_data_exists(data_dict):
                 )
                 content["precomputed_tokens"] = tokens
 
+    if "id" not in data:
+        data["id"] = "Unknown_ID"
     return {"id": data["id"], "messages": messages}
 
 
