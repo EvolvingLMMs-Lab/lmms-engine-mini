@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from peft import LoraConfig, get_peft_model
+from peft.tuners.lora.layer import LoraLayer
 from torch.nn import CrossEntropyLoss
 from transformers import Qwen2AudioEncoder
 from transformers.cache_utils import StaticCache
@@ -223,6 +224,24 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         inputs_embeds += audio_features.sum(dim=1) * 0
         return inputs_embeds
 
+    def add_fake_gradient_lora(self):
+        adapter_names = []
+        if self.use_vision_lora:
+            adapter_names.append("vision")
+        if self.use_audio_lora:
+            adapter_names.append("audio")
+        if self.use_text_lora:
+            adapter_names.append("text")
+        if len(adapter_names) == 0:
+            return
+        self.set_lora_adapter(adapter_name=adapter_names)
+        inputs_embeds = torch.zeros(
+            (1, 1, self.config.hidden_size),
+            dtype=self.model.dtype,
+            device=self.model.device,
+        )
+        self.model(inputs_embeds=inputs_embeds, input_ids=None)
+
     def get_input_mode(self, input_mode: Optional[torch.Tensor]):
         input_mode = input_mode.detach().cpu().tolist()
         if 3 in input_mode:
@@ -240,8 +259,7 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
 
     def set_adapter_on_input_mode(self, input_mode: InputMode):
         if input_mode == InputMode.AUDIO_VISION:
-            self.set_lora_adapter("vision")
-            self.set_lora_adapter("audio")
+            self.set_lora_adapter(["vision", "audio"])
         elif input_mode == InputMode.VISION:
             self.set_lora_adapter("vision")
         elif input_mode == InputMode.AUDIO:
