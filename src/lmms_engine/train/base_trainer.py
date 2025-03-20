@@ -130,3 +130,19 @@ class BaseTrainer(ABC):
     @abstractmethod
     def run(self, **kwargs):
         pass
+
+    def freeze_not_lora_params(self):
+        from peft.tuners.lora.layer import LoraLayer
+
+        for module in self.model.modules():
+            if isinstance(module, LoraLayer):
+                for n, p in module.named_parameters():
+                    if "base_layer" in n:
+                        p.requires_grad = False
+                        Logging.info(f"Freeze {n} in LoraLayer")
+                    elif "lora" in n:
+                        p.requires_grad = True
+                        Logging.info(f"Unfreeze {n} in LoraLayer")
+                    else:
+                        p.requires_grad = True
+                        Logging.info(f"Not sure what {n} is, Unfreeze {n} in LoraLayer")

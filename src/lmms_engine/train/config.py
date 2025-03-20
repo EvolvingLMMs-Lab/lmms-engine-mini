@@ -13,6 +13,7 @@ class TrainingArguments(transformers.TrainingArguments):
     use_muon: Optional[bool] = False
     freeze_modules: Optional[List[str]] = None
     only_save_mm_adapter: Optional[bool] = False
+    use_lora: Optional[bool] = False
 
 
 @dataclass
@@ -35,4 +36,4 @@ class TrainerConfig:
     dataset_config: DatasetConfig
     model_config: ModelConfig
     trainer_args: TrainingArgumentType
-    trainer_args_type: Literal["sft", "dpo"] = "sft"
+    trainer_args_type: Literal["sft", "dpo", "grpo"] = "sft"
