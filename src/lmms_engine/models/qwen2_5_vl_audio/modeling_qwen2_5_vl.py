@@ -100,6 +100,20 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
             peft_model.add_adapter("audio", audio_lora_config)
             Logging.info(f"Added audio adapter, Stats: ")
             peft_model.print_trainable_parameters()
+        text_lora = getattr(config, "text_lora", None)
+        self.use_text_lora = text_lora is not None
+        if text_lora is not None:
+            text_lora_config = LoraConfig(
+                r=text_lora["r"],
+                target_modules=text_lora["target_modules"],
+                lora_alpha=text_lora["lora_alpha"],
+                lora_dropout=text_lora["lora_dropout"],
+                task_type="CAUSAL_LM",
+            )
+            peft_model.base_model.active_adapter.append("text")
+            peft_model.add_adapter("text", text_lora_config)
+            Logging.info(f"Added text adapter, Stats: ")
+            peft_model.print_trainable_parameters()
 
     def set_lora_adapter(self, adapter_name) -> None:
         from peft.tuners.lora.layer import LoraLayer
@@ -209,6 +223,34 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         inputs_embeds += audio_features.sum(dim=1) * 0
         return inputs_embeds
 
+    def get_input_mode(self, input_mode: Optional[torch.Tensor]):
+        input_mode = input_mode.detach().cpu().tolist()
+        if 3 in input_mode:
+            input_mode = InputMode.AUDIO_VISION
+        elif 2 in input_mode:
+            if 1 in input_mode:
+                input_mode = InputMode.AUDIO_VISION
+            else:
+                input_mode = InputMode.VISION
+        elif 1 in input_mode:
+            input_mode = InputMode.AUDIO
+        elif 0 in input_mode:
+            input_mode = InputMode.LANGUAGE
+        return input_mode
+
+    def set_adapter_on_input_mode(self, input_mode: InputMode):
+        if input_mode == InputMode.AUDIO_VISION:
+            self.set_lora_adapter("vision")
+            self.set_lora_adapter("audio")
+        elif input_mode == InputMode.VISION:
+            self.set_lora_adapter("vision")
+        elif input_mode == InputMode.AUDIO:
+            self.set_lora_adapter("audio")
+        elif input_mode == InputMode.LANGUAGE:
+            self.set_adapter("text")
+        else:
+            raise ValueError(f"Invalid input_mode: {input_mode}")
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -246,16 +288,8 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
             return_dict if return_dict is not None else self.config.use_return_dict
         )
         if input_mode is not None:
-            input_mode = input_mode.max().item()
-            input_mode = InputMode(input_mode)
-            if input_mode in [InputMode.AUDIO_VISION, InputMode.VISION]:
-                self.set_lora_adapter("vision")
-            elif input_mode == InputMode.AUDIO:
-                self.set_lora_adapter("speech")
-            elif input_mode == InputMode.LANGUAGE:
-                self.unset_lora_adapter()
-            else:
-                raise ValueError(f"Invalid input_mode: {input_mode}")
+            input_mode = self.get_input_mode(input_mode)
+            self.set_adapter_on_input_mode(input_mode)
 
         if inputs_embeds is None:
             inputs_embeds = self.model.embed_tokens(input_ids)
