@@ -47,6 +47,7 @@ def lce_forward(
     rope_deltas: Optional[torch.LongTensor] = None,
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
+    input_mode: Optional[torch.Tensor] = None,
 ) -> Union[Tuple, Qwen2_5_VLCausalLMOutputWithPast]:
     output_attentions = (
         output_attentions
@@ -61,6 +62,9 @@ def lce_forward(
     return_dict = (
         return_dict if return_dict is not None else self.config.use_return_dict
     )
+    if input_mode is not None:
+        input_mode = self.get_input_mode(input_mode)
+        self.set_adapter_on_input_mode(input_mode)
 
     if inputs_embeds is None:
         inputs_embeds = self.model.embed_tokens(input_ids)
