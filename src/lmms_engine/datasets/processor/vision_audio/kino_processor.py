@@ -295,6 +295,22 @@ class KinoDataProcessor:
             self.processor.video_token
         )
 
+    def get_input_mode(self, audios, images, videos):
+        if audios is not None:
+            if images is not None or videos is not None:
+                # Audio Vision
+                input_mode = torch.tensor([3])
+            else:
+                # Audio
+                input_mode = torch.tensor([1])
+        elif images is not None or videos is not None:
+            # Vision
+            input_mode = torch.tensor([2])
+        else:
+            # Text
+            input_mode = torch.tensor([0])
+        return input_mode
+
     @property
     def tokenizer(self):
         return self.processor.tokenizer
