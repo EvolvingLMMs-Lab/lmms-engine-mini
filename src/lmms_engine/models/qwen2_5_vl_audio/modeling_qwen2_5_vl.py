@@ -117,7 +117,8 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
             peft_model.print_trainable_parameters()
 
     def set_lora_adapter(self, adapter_name) -> None:
-        from peft.tuners.lora.layer import LoraLayer
+        if isinstance(adapter_name, str):
+            adapter_name = [adapter_name]
 
         for module in self.modules():
             if isinstance(module, LoraLayer):
@@ -126,21 +127,16 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                         "Adapter cannot be set when the model is merged. Unmerging the model first."
                     )
                     module.unmerge()
-                module.set_adapter(adapter_name)
+                module._active_adapter = adapter_name
                 module._disable_adapters = False
 
     def unset_lora_adapter(self) -> None:
         # Ref: peft/tuners/tuners_utils.py - enable_adapters()
         # Ref: peft/tuners/lora/layer.py
-        from peft.tuners.lora.layer import LoraLayer
 
         for module in self.modules():
             if isinstance(module, LoraLayer):
-                # disable grads on all adapter layers
-                # TODO weijian: may use enable_adapters() instead
-                for layer_name in module.adapter_layer_names:
-                    layer = getattr(module, layer_name)
-                    layer.requires_grad_(False)
+                module._active_adapter = []
                 module._disable_adapters = True
 
     def prepare_dummy_pixel_inputs(self):
@@ -224,23 +220,32 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         inputs_embeds += audio_features.sum(dim=1) * 0
         return inputs_embeds
 
-    def add_fake_gradient_lora(self):
+    def log_lora(self):
+        for module in self.modules():
+            if isinstance(module, LoraLayer):
+                Logging.null_logging(module.lora_A.vision.weight.grad)
+                Logging.null_logging(module.lora_A.audio.weight.grad)
+                Logging.null_logging(module.lora_A.text.weight.grad)
+
+    def add_fake_gradient_lora(self, hidden_states, input_mode):
         adapter_names = []
-        if self.use_vision_lora:
-            adapter_names.append("vision")
-        if self.use_audio_lora:
-            adapter_names.append("audio")
-        if self.use_text_lora:
-            adapter_names.append("text")
-        if len(adapter_names) == 0:
-            return
+        if input_mode == InputMode.AUDIO_VISION:
+            adapter_names = ["text"]
+        elif input_mode == InputMode.VISION:
+            adapter_names = ["text", "audio"]
+        elif input_mode == InputMode.AUDIO:
+            adapter_names = ["text", "vision"]
+        elif input_mode == InputMode.LANGUAGE:
+            adapter_names = ["vision", "audio"]
         self.set_lora_adapter(adapter_name=adapter_names)
         inputs_embeds = torch.zeros(
             (1, 1, self.config.hidden_size),
             dtype=self.model.dtype,
             device=self.model.device,
         )
-        self.model(inputs_embeds=inputs_embeds, input_ids=None)
+        embeds_all_adapters = self.model(inputs_embeds=inputs_embeds, input_ids=None)
+        hidden_states += embeds_all_adapters[0] * 0
+        return hidden_states
 
     def get_input_mode(self, input_mode: Optional[torch.Tensor]):
         input_mode = input_mode.detach().cpu().tolist()
