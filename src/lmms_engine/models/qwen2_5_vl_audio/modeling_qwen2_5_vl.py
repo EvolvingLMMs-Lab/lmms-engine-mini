@@ -124,6 +124,9 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
             else:
                 peft_model.base_model.active_adapter.append("text")
                 peft_model.add_adapter("text", text_lora_config)
+        self.use_all_adapter = (
+            self.use_vision_lora and self.use_audio_lora and self.use_text_lora
+        )
 
     def set_lora_adapter(self, adapter_name) -> None:
         if isinstance(adapter_name, str):
@@ -279,7 +282,7 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         elif input_mode == InputMode.AUDIO:
             self.set_lora_adapter("audio")
         elif input_mode == InputMode.LANGUAGE:
-            self.set_adapter("text")
+            self.set_lora_adapter("text")
         else:
             raise ValueError(f"Invalid input_mode: {input_mode}")
 
@@ -319,7 +322,8 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
         )
-        if input_mode is not None:
+        # Only when we have all adapters, we need to set the adapter based on input_mode
+        if input_mode is not None and self.use_all_adapter:
             input_mode = self.get_input_mode(input_mode)
             self.set_adapter_on_input_mode(input_mode)
 
