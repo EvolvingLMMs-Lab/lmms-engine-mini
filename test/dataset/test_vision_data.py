@@ -4,8 +4,8 @@ import unittest
 
 from torch.utils.data import DataLoader
 
-from synvo_engine.datasets import DatasetConfig, DatasetFactory
-from synvo_engine.utils.train_utils import TrainUtilities
+from lmms_engine.datasets import DatasetConfig, DatasetFactory
+from lmms_engine.utils.train_utils import TrainUtilities
 
 current_dir = pathlib.Path().resolve()
 data_folder = current_dir.parent.parent / "examples" / "sample_json_data"
@@ -16,7 +16,7 @@ class TestVisionDataset(unittest.TestCase):
         config = {
             "dataset_type": "vision",
             "dataset_format": "json",
-            "dataset_path": os.path.join(str(data_folder), "synvo_engine.json"),
+            "dataset_path": os.path.join(str(data_folder), "lmms_engine.json"),
             "chat_template": "qwen",
             "processor_config": {
                 "processor_name": "Qwen/Qwen2-VL-7B-Instruct",

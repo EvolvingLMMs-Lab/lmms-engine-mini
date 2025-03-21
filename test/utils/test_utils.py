@@ -2,7 +2,7 @@ import unittest
 
 from transformers import AutoProcessor
 
-from synvo_engine.utils.train_utils import TrainUtilities
+from lmms_engine.utils.train_utils import TrainUtilities
 
 
 class TestTrainUtilities(unittest.TestCase):
