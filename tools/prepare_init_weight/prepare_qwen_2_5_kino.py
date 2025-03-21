@@ -13,12 +13,12 @@ from transformers import (
     Qwen2AudioForConditionalGeneration,
 )
 
-from synvo_engine.models.qwen2_5_vl_audio import (
+from lmms_engine.models.qwen2_5_vl_audio import (
     KinoQwen2_5_VLConfig,
     KinoQwen2_5_VLForConditionalGeneration,
     KinoQwen2_5_VLProcessor,
 )
-from synvo_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
+from lmms_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
     AudioMultiModalProjector,
 )
 
