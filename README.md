@@ -1,7 +1,7 @@
 
-# Synvo Engine
+# LMMs Engine
 
-Training framework for Synvo.
+Training framework for LMMs-Lab.
 
 ## Current TODO
 1. Support Flash-Attention for Qwen2AudioEncoder [Current Issue](https://github.com/QwenLM/Qwen2-Audio/issues/51)
