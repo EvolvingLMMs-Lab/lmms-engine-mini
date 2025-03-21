@@ -6,6 +6,7 @@ from ..protocol import Runnable
 from ..train import (
     DPOArguments,
     GRPOArguments,
+    LoraConfig,
     TrainerConfig,
     TrainerFactory,
     TrainingArguments,
@@ -43,6 +44,13 @@ class Pipeline:
 
         trainer_type = config.pop("trainer_type")
 
+        lora_configs = config.pop("lora_configs", None)
+        lora_configs = (
+            [LoraConfig(**lora_config) for lora_config in lora_configs]
+            if lora_configs
+            else None
+        )
+
         trainer_args_type = config.pop("trainer_args_type", "sft")
         trainer_args = self._build_training_args(config, trainer_args_type)
 
@@ -52,6 +60,7 @@ class Pipeline:
             trainer_type=trainer_type,
             trainer_args=trainer_args,
             trainer_args_type=trainer_args_type,
+            lora_configs=lora_configs,
         )
         trainer = TrainerFactory.create_trainer(train_config)
         return trainer
