@@ -4,8 +4,8 @@ import unittest
 
 from torch.utils.data import DataLoader
 
-from synvo_engine.datasets import DatasetConfig, DatasetFactory
-from synvo_engine.utils.train_utils import TrainUtilities
+from lmms_engine.datasets import DatasetConfig, DatasetFactory
+from lmms_engine.utils.train_utils import TrainUtilities
 
 current_dir = pathlib.Path().resolve()
 data_folder = current_dir.parent.parent / "examples" / "sample_jsonl_data"

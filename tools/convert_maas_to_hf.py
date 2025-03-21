@@ -40,12 +40,12 @@ from transformers import (
     Qwen2AudioForConditionalGeneration,
 )
 
-from synvo_engine.models.kino.configuration_kino import KinoConfig
-from synvo_engine.models.kino.modeling_kino import (
+from lmms_engine.models.kino.configuration_kino import KinoConfig
+from lmms_engine.models.kino.modeling_kino import (
     KinoForConditionalGeneration,
     LlavaOnevisionAudioMultiModalProjector,
 )
-from synvo_engine.models.kino.processing_kino import KinoProcessor
+from lmms_engine.models.kino.processing_kino import KinoProcessor
 
 KEYS_TO_MODIFY_MAPPING = {
     "model.vision_tower.": "vision_tower.",

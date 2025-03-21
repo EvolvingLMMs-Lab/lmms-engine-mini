@@ -13,10 +13,10 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from synvo_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
+from lmms_engine.models.qwen2_5_vl_audio.modeling_qwen2_5_vl import (
     Qwen2_5_VLCausalLMOutputWithPast,
 )
-from synvo_engine.utils import Logging
+from lmms_engine.utils import Logging
 
 try:
     from liger_kernel.transformers.fused_linear_cross_entropy import (

@@ -4,7 +4,7 @@ import unittest
 
 from trl.trainer.dpo_trainer import PreferenceCollator
 
-from synvo_engine.datasets import DatasetConfig, VisionPreferenceDataset
+from lmms_engine.datasets import DatasetConfig, VisionPreferenceDataset
 
 current_dir = pathlib.Path().resolve()
 data_folder = current_dir.parent.parent / "examples" / "sample_preference_data"

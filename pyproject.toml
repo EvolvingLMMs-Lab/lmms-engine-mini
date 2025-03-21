@@ -6,7 +6,7 @@ requires = ["setuptools>=42", "wheel", "setuptools_scm[tomli]>=6.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "synvo_engine"
+name = "lmms_engine"
 version = "0.1.0"
 authors = [
     { name = "Your Name", email = "youremail@123.com" },
@@ -47,7 +47,7 @@ pref = [
 ]
 
 all = [
-    "synvo_engine[pref]",
+    "lmms_engine[pref]",
 ]
 
 [tool.setuptools.packages.find]
@@ -63,7 +63,7 @@ exclude = [
 ]
 
 [project.scripts]
-synvo_launch="synvo_engine.launch.cli:main"
+synvo_launch="lmms_engine.launch.cli:main"
 
 
 [project.urls]

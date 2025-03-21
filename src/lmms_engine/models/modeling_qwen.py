@@ -50,7 +50,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from synvo_engine.utils.logging_utils import Logging
+from lmms_engine.utils.logging_utils import Logging
 
 from .kernels import Attention as SequenceParallelAttention
 from .kernels import fast_cross_entropy_loss

@@ -15,7 +15,7 @@ def parse_argument():
     parser.add_argument("--split", type=str, default="train")
     parser.add_argument("--output-folder", type=str, default="./data")
     parser.add_argument(
-        "--output-name", type=str, default="synvo_engine.json", help="output file name"
+        "--output-name", type=str, default="lmms_engine.json", help="output file name"
     )
     parser.add_argument(
         "--modalities", type=str, default="image", choices=["image", "audio"]

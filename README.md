@@ -54,7 +54,7 @@ An example config
             "dataset_config": {
                 "dataset_type" : "vision",
                 "dataset_format" : "json",
-                "dataset_path" : "./data/synvo_engine.json",
+                "dataset_path" : "./data/lmms_engine.json",
                 "processor_config": {
                     "processor_name": "Qwen/Qwen2-VL-2B-Instruct",
                     "processor_modality": "vision",
@@ -109,7 +109,7 @@ CUDA_LAUNCH_BLOCKING=1 ACCELERATE_CPU_AFFINITY=1 accelerate launch \
     --main_process_ip=<port_ip> \
     --main_process_port=<port> \
     --machine_rank="0" \
-    -m synvo_engine.launch.cli --config scripts/config_custom.json
+    -m lmms_engine.launch.cli --config scripts/config_custom.json
 ```
 
 To launch it using deepspeed, you can
@@ -124,7 +124,7 @@ CUDA_LAUNCH_BLOCKING=1 ACCELERATE_CPU_AFFINITY=1 accelerate launch \
     --main_process_ip=<port_ip> \
     --main_process_port=<port> \
     --machine_rank="0" \
-    -m synvo_engine.launch.cli --config ${CONFIG}
+    -m lmms_engine.launch.cli --config ${CONFIG}
 ```
 
 You can also run deepspeed using `torchrun` and it is the recommended way when launch on multiple machines
@@ -134,6 +134,6 @@ torchrun --nproc_per_node="8" \
     --node_rank="0" \
     --master_addr="<port_ip>" \
     --master_port="<port>" \
-    -m synvo_engine.launch.cli --config ${CONFIG}
+    -m lmms_engine.launch.cli --config ${CONFIG}
 ```
 

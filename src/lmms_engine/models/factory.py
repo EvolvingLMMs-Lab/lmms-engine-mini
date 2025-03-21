@@ -19,7 +19,7 @@ class ModelFactory:
         else:
             try:
                 synvo_model_module = importlib.import_module(
-                    f"synvo_engine.models.{model_name}"
+                    f"lmms_engine.models.{model_name}"
                 )
                 cls = getattr(synvo_model_module, MODEL_REGISTRY[model_name])
             except ImportError as e:

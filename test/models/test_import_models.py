@@ -1,6 +1,6 @@
 import unittest
 
-from synvo_engine.models import ModelFactory
+from lmms_engine.models import ModelFactory
 
 
 class TestModels(unittest.TestCase):
