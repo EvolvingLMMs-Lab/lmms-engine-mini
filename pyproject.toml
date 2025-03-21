@@ -63,7 +63,7 @@ exclude = [
 ]
 
 [project.scripts]
-synvo_launch="lmms_engine.launch.cli:main"
+lmms_launch="lmms_engine.launch.cli:main"
 
 
 [project.urls]

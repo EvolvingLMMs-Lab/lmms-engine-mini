@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from peft import LoraConfig, get_peft_model
 from peft.tuners.lora.layer import LoraLayer
-from synvo_engine.utils import Logging
 from torch.nn import CrossEntropyLoss
 from transformers import Qwen2AudioEncoder
 from transformers.cache_utils import StaticCache
@@ -20,6 +19,8 @@ from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
     Qwen2_5_VLPreTrainedModel,
 )
 from transformers.utils import logging
+
+from lmms_engine.utils import Logging
 
 from .configuration_qwen2_5_vl import KinoQwen2_5_VLConfig, Qwen2_5_VLVisionConfig
 from .processing_qwen2_5_vl import InputMode
