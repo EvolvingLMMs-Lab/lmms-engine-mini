@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Literal, Optional, Union
 
 import transformers
+from peft import LoraConfig as PeftLoraConfig
 from trl import DPOConfig, GRPOConfig
 
 from ..datasets import DatasetConfig
@@ -31,9 +32,15 @@ TrainingArgumentType = Union[TrainingArguments, DPOArguments, GRPOArguments]
 
 
 @dataclass
+class LoraConfig(PeftLoraConfig):
+    adapter_name: str = "default"
+
+
+@dataclass
 class TrainerConfig:
     trainer_type: Literal["accelerate_megatron", "hf_trainer"]
     dataset_config: DatasetConfig
     model_config: ModelConfig
     trainer_args: TrainingArgumentType
     trainer_args_type: Literal["sft", "dpo", "grpo"] = "sft"
+    lora_configs: Optional[List[LoraConfig]] = None

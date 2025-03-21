@@ -1,5 +1,11 @@
 from .accelerate_megatron_trainer import AccelerateMegatronTrainer
-from .config import DPOArguments, GRPOArguments, TrainerConfig, TrainingArguments
+from .config import (
+    DPOArguments,
+    GRPOArguments,
+    LoraConfig,
+    TrainerConfig,
+    TrainingArguments,
+)
 from .factory import TrainerFactory
 from .hf_trainer import Hf_Trainer
 
@@ -11,4 +17,5 @@ __all__ = [
     "TrainingArguments",
     "DPOArguments",
     "GRPOArguments",
+    "LoraConfig",
 ]

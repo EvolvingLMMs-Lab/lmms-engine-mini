@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import torch
+from peft import LoraConfig, get_peft_model
 
 from ..datasets import DatasetFactory
 from ..models import ModelFactory
@@ -22,6 +23,7 @@ class BaseTrainer(ABC):
         self.train_dataset_config = config.dataset_config
         self.model_config = config.model_config
         self.config = config
+        self.lora_configs = config.lora_configs
 
     def build(self):
         self.model = self._build_model()
@@ -40,6 +42,8 @@ class BaseTrainer(ABC):
             attn_implementation=self.model_config.attn_implementation,
             torch_dtype=(torch.bfloat16 if self.config.trainer_args.bf16 else None),
         )
+        if self.config.trainer_args.use_lora:
+            model = self._build_lora_on_model(model)
         if self.model_config.overwrite_config:
             for key, value in self.model_config.overwrite_config.items():
                 setattr(model.config, key, value)
@@ -143,3 +147,24 @@ class BaseTrainer(ABC):
                         p.requires_grad = True
                     else:
                         p.requires_grad = True
+
+    def _build_lora_on_model(self, model):
+        assert self.config.trainer_args.use_lora, "You should set use_lora to True"
+        for lora_config in self.lora_configs:
+            adapter_name = lora_config.adapter_name
+            peft_model = get_peft_model(
+                model,
+                peft_config=lora_config,
+                adapter_name=adapter_name,
+            )
+            setattr(model.config, f"{adapter_name}_lora", lora_config.to_dict())
+            Logging.info(f"Set {adapter_name}_lora to {lora_config.to_dict()}")
+            trainable_params, all_param = peft_model.get_nb_trainable_parameters()
+            Logging.info(
+                f"trainable params: {trainable_params:,d} || "
+                f"all params: {all_param:,d} || "
+                f"trainable%: {100 * trainable_params / all_param:.4f}"
+            )
+            Logging.info(f"Model structure : {model}")
+
+        return model
