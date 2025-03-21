@@ -62,7 +62,7 @@ def lce_forward(
     return_dict = (
         return_dict if return_dict is not None else self.config.use_return_dict
     )
-    if input_mode is not None:
+    if input_mode is not None and self.use_all_adapter:
         input_mode = self.get_input_mode(input_mode)
         self.set_adapter_on_input_mode(input_mode)
 
