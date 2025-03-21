@@ -72,6 +72,7 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         self.post_init()
         vision_lora = getattr(config, "vision_lora", None)
         self.use_vision_lora = vision_lora is not None
+        peft_model = None
         if vision_lora is not None:
             vision_lora_config = LoraConfig(
                 r=vision_lora["r"],
@@ -81,12 +82,10 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                 task_type="CAUSAL_LM",
             )
             peft_model = get_peft_model(
-                self.model,
+                self,
                 peft_config=vision_lora_config,
                 adapter_name="vision",
             )
-            Logging.info(f"Added vision adapter, Stats: ")
-            peft_model.print_trainable_parameters()
         audio_lora = getattr(config, "audio_lora", None)
         self.use_audio_lora = audio_lora is not None
         if audio_lora is not None:
@@ -97,10 +96,15 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                 lora_dropout=audio_lora["lora_dropout"],
                 task_type="CAUSAL_LM",
             )
-            peft_model.base_model.active_adapter.append("audio")
-            peft_model.add_adapter("audio", audio_lora_config)
-            Logging.info(f"Added audio adapter, Stats: ")
-            peft_model.print_trainable_parameters()
+            if peft_model is None:
+                peft_model = get_peft_model(
+                    self,
+                    peft_config=audio_lora_config,
+                    adapter_name="audio",
+                )
+            else:
+                peft_model.base_model.active_adapter.append("audio")
+                peft_model.add_adapter("audio", audio_lora_config)
         text_lora = getattr(config, "text_lora", None)
         self.use_text_lora = text_lora is not None
         if text_lora is not None:
@@ -111,10 +115,15 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
                 lora_dropout=text_lora["lora_dropout"],
                 task_type="CAUSAL_LM",
             )
-            peft_model.base_model.active_adapter.append("text")
-            peft_model.add_adapter("text", text_lora_config)
-            Logging.info(f"Added text adapter, Stats: ")
-            peft_model.print_trainable_parameters()
+            if peft_model is None:
+                peft_model = get_peft_model(
+                    self,
+                    peft_config=text_lora_config,
+                    adapter_name="text",
+                )
+            else:
+                peft_model.base_model.active_adapter.append("text")
+                peft_model.add_adapter("text", text_lora_config)
 
     def set_lora_adapter(self, adapter_name) -> None:
         if isinstance(adapter_name, str):
