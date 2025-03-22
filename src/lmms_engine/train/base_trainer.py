@@ -1,3 +1,6 @@
+import json
+import os
+import shutil
 from abc import ABC, abstractmethod
 
 import torch
@@ -168,3 +171,13 @@ class BaseTrainer(ABC):
             Logging.info(f"Model structure : {model}")
 
         return model
+
+    def save_config(self):
+        output_dir = self.config.trainer_args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        with open(f"{output_dir}/training_config.json", "w") as f:
+            json.dump(self.config.to_dict(), f, indent=4)
+        if self.config.dataset_config.dataset_format == "yaml":
+            # Copy the yaml to output dir
+            yaml_path = self.config.dataset_config.dataset_path
+            shutil.copy(yaml_path, f"{output_dir}/dataset.yaml")
