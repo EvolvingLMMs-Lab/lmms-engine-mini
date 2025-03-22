@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from peft import LoraConfig, get_peft_model
+from peft.tuners.lora.layer import LoraLayer
 from torch.nn import CrossEntropyLoss
 from transformers import Qwen2AudioEncoder
 from transformers.cache_utils import StaticCache
@@ -18,7 +20,10 @@ from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
 )
 from transformers.utils import logging
 
+from lmms_engine.utils import Logging
+
 from .configuration_qwen2_5_vl import KinoQwen2_5_VLConfig, Qwen2_5_VLVisionConfig
+from .processing_qwen2_5_vl import InputMode
 
 logger = logging.get_logger(__name__)
 
@@ -65,6 +70,86 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
 
         # Initialize weights and apply final processing
         self.post_init()
+        vision_lora = getattr(config, "vision_lora", None)
+        self.use_vision_lora = vision_lora is not None
+        peft_model = None
+        if vision_lora is not None:
+            vision_lora_config = LoraConfig(
+                r=vision_lora["r"],
+                target_modules=vision_lora["target_modules"],
+                lora_alpha=vision_lora["lora_alpha"],
+                lora_dropout=vision_lora["lora_dropout"],
+                task_type="CAUSAL_LM",
+            )
+            peft_model = get_peft_model(
+                self,
+                peft_config=vision_lora_config,
+                adapter_name="vision",
+            )
+        audio_lora = getattr(config, "audio_lora", None)
+        self.use_audio_lora = audio_lora is not None
+        if audio_lora is not None:
+            audio_lora_config = LoraConfig(
+                r=audio_lora["r"],
+                target_modules=audio_lora["target_modules"],
+                lora_alpha=audio_lora["lora_alpha"],
+                lora_dropout=audio_lora["lora_dropout"],
+                task_type="CAUSAL_LM",
+            )
+            if peft_model is None:
+                peft_model = get_peft_model(
+                    self,
+                    peft_config=audio_lora_config,
+                    adapter_name="audio",
+                )
+            else:
+                peft_model.base_model.active_adapter.append("audio")
+                peft_model.add_adapter("audio", audio_lora_config)
+        text_lora = getattr(config, "text_lora", None)
+        self.use_text_lora = text_lora is not None
+        if text_lora is not None:
+            text_lora_config = LoraConfig(
+                r=text_lora["r"],
+                target_modules=text_lora["target_modules"],
+                lora_alpha=text_lora["lora_alpha"],
+                lora_dropout=text_lora["lora_dropout"],
+                task_type="CAUSAL_LM",
+            )
+            if peft_model is None:
+                peft_model = get_peft_model(
+                    self,
+                    peft_config=text_lora_config,
+                    adapter_name="text",
+                )
+            else:
+                peft_model.base_model.active_adapter.append("text")
+                peft_model.add_adapter("text", text_lora_config)
+        self.use_all_adapter = (
+            self.use_vision_lora and self.use_audio_lora and self.use_text_lora
+        )
+
+    def set_lora_adapter(self, adapter_name) -> None:
+        if isinstance(adapter_name, str):
+            adapter_name = [adapter_name]
+
+        for module in self.modules():
+            if isinstance(module, LoraLayer):
+                if module.merged:
+                    Logging.warning(
+                        "Adapter cannot be set when the model is merged. Unmerging the model first."
+                    )
+                    module.unmerge()
+                module._active_adapter = adapter_name
+                module._disable_adapters = False
+
+    def unset_lora_adapter(self) -> None:
+        # Ref: peft/tuners/tuners_utils.py - enable_adapters()
+        # Ref: peft/tuners/lora/layer.py
+
+        for module in self.modules():
+            if isinstance(module, LoraLayer):
+                module._active_adapter = []
+                module._disable_adapters = True
 
     def prepare_dummy_pixel_inputs(self):
         channel = 3
@@ -147,6 +232,60 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         inputs_embeds += audio_features.sum(dim=1) * 0
         return inputs_embeds
 
+    def log_lora(self):
+        for module in self.modules():
+            if isinstance(module, LoraLayer):
+                Logging.null_logging(module.lora_A.vision.weight.grad)
+                Logging.null_logging(module.lora_A.audio.weight.grad)
+                Logging.null_logging(module.lora_A.text.weight.grad)
+
+    def add_fake_gradient_lora(self, hidden_states, input_mode):
+        adapter_names = []
+        if input_mode == InputMode.AUDIO_VISION:
+            adapter_names = ["text"]
+        elif input_mode == InputMode.VISION:
+            adapter_names = ["text", "audio"]
+        elif input_mode == InputMode.AUDIO:
+            adapter_names = ["text", "vision"]
+        elif input_mode == InputMode.LANGUAGE:
+            adapter_names = ["vision", "audio"]
+        self.set_lora_adapter(adapter_name=adapter_names)
+        inputs_embeds = torch.zeros(
+            (1, 1, self.config.hidden_size),
+            dtype=self.model.dtype,
+            device=self.model.device,
+        )
+        embeds_all_adapters = self.model(inputs_embeds=inputs_embeds, input_ids=None)
+        hidden_states += embeds_all_adapters[0] * 0
+        return hidden_states
+
+    def get_input_mode(self, input_mode: Optional[torch.Tensor]):
+        input_mode = input_mode.detach().cpu().tolist()
+        if 3 in input_mode:
+            input_mode = InputMode.AUDIO_VISION
+        elif 2 in input_mode:
+            if 1 in input_mode:
+                input_mode = InputMode.AUDIO_VISION
+            else:
+                input_mode = InputMode.VISION
+        elif 1 in input_mode:
+            input_mode = InputMode.AUDIO
+        elif 0 in input_mode:
+            input_mode = InputMode.LANGUAGE
+        return input_mode
+
+    def set_adapter_on_input_mode(self, input_mode: InputMode):
+        if input_mode == InputMode.AUDIO_VISION:
+            self.set_lora_adapter(["vision", "audio"])
+        elif input_mode == InputMode.VISION:
+            self.set_lora_adapter("vision")
+        elif input_mode == InputMode.AUDIO:
+            self.set_lora_adapter("audio")
+        elif input_mode == InputMode.LANGUAGE:
+            self.set_lora_adapter("text")
+        else:
+            raise ValueError(f"Invalid input_mode: {input_mode}")
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -168,6 +307,7 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         rope_deltas: Optional[torch.LongTensor] = None,
         cache_position: Optional[torch.LongTensor] = None,
         second_per_grid_ts: Optional[torch.Tensor] = None,
+        input_mode: Optional[torch.Tensor] = None,
     ) -> Union[Tuple, Qwen2_5_VLCausalLMOutputWithPast]:
         output_attentions = (
             output_attentions
@@ -182,6 +322,10 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
         )
+        # Only when we have all adapters, we need to set the adapter based on input_mode
+        if input_mode is not None and self.use_all_adapter:
+            input_mode = self.get_input_mode(input_mode)
+            self.set_adapter_on_input_mode(input_mode)
 
         if inputs_embeds is None:
             inputs_embeds = self.model.embed_tokens(input_ids)
@@ -364,6 +508,7 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         audio_values=None,
         audio_attention_mask=None,
         second_per_grid_ts=None,
+        input_mode=None,
         **kwargs,
     ):
         # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
@@ -388,7 +533,11 @@ class KinoQwen2_5_VLForConditionalGeneration(Qwen2_5_VLForConditionalGeneration)
         if inputs_embeds is not None and cache_position[0] == 0:
             model_inputs = {"inputs_embeds": inputs_embeds, "input_ids": None}
         else:
-            model_inputs = {"input_ids": input_ids, "inputs_embeds": None}
+            model_inputs = {
+                "input_ids": input_ids,
+                "inputs_embeds": None,
+                "input_mode": input_mode,
+            }
 
         if isinstance(past_key_values, StaticCache) and attention_mask.ndim == 2:
             if model_inputs["inputs_embeds"] is not None:

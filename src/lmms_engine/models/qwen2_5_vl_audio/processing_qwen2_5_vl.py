@@ -1,7 +1,9 @@
+import enum
 import os
 from typing import List, Optional, Union
 
 import numpy as np
+import torch
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import ImageInput, VideoInput
 from transformers.models.auto import AutoFeatureExtractor
@@ -15,6 +17,13 @@ from transformers.tokenization_utils_base import PreTokenizedInput, TextInput
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
+
+
+class InputMode(enum.Enum):
+    LANGUAGE = 0
+    AUDIO = 1
+    VISION = 2
+    AUDIO_VISION = 3
 
 
 class Qwen2_5_VLVideosProcessorKwargs(VideosKwargs, total=False):
@@ -221,7 +230,22 @@ class KinoQwen2_5_VLProcessor(ProcessorMixin):
         else:
             audio_inputs = {}
 
+        input_mode = []
+        for te in text:
+            if self.audio_token in text:
+                if self.image_token or self.video_token in text:
+                    input_mode.append(InputMode.AUDIO_VISION.value)
+                else:
+                    input_mode.append(InputMode.AUDIO.value)
+            elif self.image_token or self.video_token in text:
+                input_mode.append(InputMode.VISION.value)
+            else:
+                input_mode.append(InputMode.LANGUAGE.value)
+
+        input_mode = torch.tensor(input_mode)
+
         text_inputs = self.tokenizer(text, **output_kwargs["text_kwargs"])
+        text_inputs["input_mode"] = input_mode
 
         return BatchFeature(
             data={**text_inputs, **image_inputs, **videos_inputs, **audio_inputs}

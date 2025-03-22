@@ -18,10 +18,10 @@ class ModelFactory:
                 raise ValueError(f"Model '{model_name}' not found!")
         else:
             try:
-                synvo_model_module = importlib.import_module(
+                lmms_model_module = importlib.import_module(
                     f"lmms_engine.models.{model_name}"
                 )
-                cls = getattr(synvo_model_module, MODEL_REGISTRY[model_name])
+                cls = getattr(lmms_model_module, MODEL_REGISTRY[model_name])
             except ImportError as e:
                 raise ValueError(
                     f"Model '{model_name}' can not be imported! \n Error : {e}"
