@@ -34,7 +34,9 @@ class KinoDataProcessor:
             raise ValueError(
                 "Processor has not been built yet. Please call build() first."
             )
-        self.processor.save_pretrained(save_directory)
+        # Build a clean processor for saving
+        new_processor = self._build_processor()
+        new_processor.save_pretrained(save_directory)
 
     def process(
         self,
