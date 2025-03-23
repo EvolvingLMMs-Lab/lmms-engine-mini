@@ -82,7 +82,7 @@ class Mistral3AudioProjector(nn.Module):
         return hidden_states
 
 
-class Mistral3AudioModel(Mistral3ForConditionalGeneration):
+class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
     def __init__(self, config: Mistral3AudioConfig):
         PreTrainedModel.__init__(self, config)
         self.vision_tower = AutoModel.from_config(config.vision_config)
