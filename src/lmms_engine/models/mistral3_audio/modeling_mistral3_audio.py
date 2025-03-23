@@ -58,6 +58,8 @@ class Mistral3AudioCausalLMOutputWithPast(Mistral3CausalLMOutputWithPast):
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     image_hidden_states: Optional[torch.FloatTensor] = None
+    flops: Optional[float] = None
+    audio_hidden_states: Optional[torch.FloatTensor] = None
 
 
 class Mistral3AudioProjector(nn.Module):
@@ -88,11 +90,18 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
 
     def __init__(self, config: Mistral3AudioConfig):
         PreTrainedModel.__init__(self, config)
+        # Pixtral model does not support other attn
+        config.vision_config._attn_implementation = "eager"
+        config.vision_config._attn_implementation_autoset = False
         self.vision_tower = AutoModel.from_config(config.vision_config)
 
         self.multi_modal_projector = Mistral3MultiModalProjector(config)
         self.vocab_size = config.text_config.vocab_size
         self.language_model = AutoModelForCausalLM.from_config(config.text_config)
+        # I have seen issue in https://github.com/modelscope/ms-swift/issues/2542
+        # But I am not sure why it works in qwen2_5_vl_audio, weird
+        if config.audio_config._attn_implementation == "flash_attention_2":
+            config.audio_config._attn_implementation = "sdpa"
         self.audio_tower = Qwen2AudioEncoder(config.audio_config)
         self.audio_modal_projector = Mistral3AudioProjector(config)
 
@@ -298,6 +307,7 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
                 audio_mask, unpadded_audio_features
             )
 
+        flops = self.calc_gpt_flops(attention_mask)
         outputs = self.language_model(
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -308,7 +318,6 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
-            logits_to_keep=logits_to_keep,
             **lm_kwargs,
         )
 
@@ -350,4 +359,79 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
             image_hidden_states=image_features if pixel_values is not None else None,
+            flops=flops,
+            audio_hidden_states=audio_features if audio_values is not None else None,
         )
+
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        past_key_values=None,
+        inputs_embeds=None,
+        pixel_values=None,
+        image_sizes=None,
+        pixel_values_videos=None,
+        image_sizes_videos=None,
+        audio_values=None,
+        audio_attention_mask=None,
+        attention_mask=None,
+        cache_position=None,
+        num_logits_to_keep=None,
+        **kwargs,
+    ):
+        # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
+
+        model_inputs = self.language_model.prepare_inputs_for_generation(
+            input_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            cache_position=cache_position,
+            num_logits_to_keep=num_logits_to_keep,
+            **kwargs,
+        )
+
+        if cache_position[0] == 0:
+            # If we're in cached decoding stage, pixel values should be None because input ids do not contain special image token anymore
+            # Otherwise we need pixel values to be passed to model
+            model_inputs["pixel_values"] = pixel_values
+            model_inputs["image_sizes"] = image_sizes
+            model_inputs["pixel_values_videos"] = pixel_values_videos
+            model_inputs["image_sizes_videos"] = image_sizes_videos
+            model_inputs["audio_values"] = audio_values
+            model_inputs["audio_attention_mask"] = audio_attention_mask
+
+        return model_inputs
+
+    def flops_per_token(self):
+        num_hidden_layers = self.config.text_config.num_hidden_layers
+        hidden_size = self.config.text_config.hidden_size
+        vocab_size = self.config.text_config.vocab_size
+        intermediate_size = self.config.text_config.intermediate_size
+        kv_heads = self.config.text_config.num_key_value_heads
+        attn_heads = self.config.text_config.num_attention_heads
+        total_params = 0.0  # initilize total_params as float, to avoid overflow of 'flops' when using 512 gpus
+        # head, mebedding not considered
+        total_params += vocab_size * hidden_size
+        # transformers
+        params_per_block = 2 * hidden_size * hidden_size
+        params_per_block += 4 * hidden_size * hidden_size * kv_heads // attn_heads
+        params_per_block += 3 * hidden_size * intermediate_size
+        total_params += params_per_block * num_hidden_layers
+
+        flops = 6 * total_params
+        return flops
+
+    def calc_gpt_flops(self, attention_mask):
+        tokens_count = torch.sum(attention_mask != 0).item()
+        flops = self.flops_per_token() * tokens_count
+        token_count_list = torch.sum(attention_mask != 0, dim=1).tolist()
+        for seq_len in token_count_list:
+            flops += (
+                12
+                * seq_len
+                * seq_len
+                * self.config.text_config.num_hidden_layers
+                * self.config.text_config.hidden_size
+            )
+        return flops
