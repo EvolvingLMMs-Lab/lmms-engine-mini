@@ -1,6 +1,7 @@
+import os
 from typing import List, Optional, Union
 
-from transformers import PixtralProcessor
+from transformers import AutoFeatureExtractor, PixtralProcessor
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import (
     ImageInput,
@@ -15,6 +16,9 @@ from transformers.processing_utils import (
     _validate_images_text_input_order,
 )
 from transformers.tokenization_utils_base import PreTokenizedInput, TextInput
+from transformers.utils import logging
+
+logger = logging.get_logger(__name__)
 
 
 class PixtralProcessorKwargs(ProcessingKwargs, total=False):
@@ -39,8 +43,8 @@ def is_image_or_image_url(elem):
     return is_url(elem) or is_valid_image(elem)
 
 
-class Mistral3AudioProcessor(PixtralProcessor):
-    attributes = ["image_processor", "tokenizer", "audio_processor"]
+class Mistral3AudioProcessor(ProcessorMixin):
+    attributes = ["image_processor", "audio_processor", "tokenizer"]
     valid_kwargs = [
         "chat_template",
         "patch_size",
@@ -48,6 +52,8 @@ class Mistral3AudioProcessor(PixtralProcessor):
         "image_token",
         "image_break_token",
         "image_end_token",
+        "video_token",
+        "audio_token",
     ]
     image_processor_class = "AutoImageProcessor"
     audio_processor_class = "WhisperFeatureExtractor"
@@ -79,8 +85,8 @@ class Mistral3AudioProcessor(PixtralProcessor):
             chat_template = self.default_chat_template
         super().__init__(
             image_processor,
-            tokenizer,
             audio_processor,
+            tokenizer,
             chat_template=chat_template,
             **kwargs,
         )
@@ -138,6 +144,8 @@ class Mistral3AudioProcessor(PixtralProcessor):
             image_sizes = iter(image_inputs["image_sizes"])
             num_image_tokens = []
             for image_size in image_sizes:
+                if not isinstance(image_size, list):
+                    image_size = image_size.tolist()
                 height, width = image_size
                 num_height_tokens = height // (
                     self.patch_size * self.spatial_merge_size
@@ -156,6 +164,8 @@ class Mistral3AudioProcessor(PixtralProcessor):
             image_sizes = iter(video_inputs["image_sizes"])
             num_video_tokens = []
             for image_size in image_sizes:
+                if not isinstance(image_size, list):
+                    image_size = image_size.tolist()
                 height, width = image_size
                 num_height_tokens = height // (
                     self.patch_size * self.spatial_merge_size
@@ -207,10 +217,8 @@ class Mistral3AudioProcessor(PixtralProcessor):
         current_audio_idx = 0
         for sample in text:
             while special_token in sample:
-                num_audio_token = num_special_tokens[current_audio_idx]
-                sample = sample.replace(
-                    special_token, "<placeholder>" * num_audio_token, 1
-                )
+                num_token = num_special_tokens[current_audio_idx]
+                sample = sample.replace(special_token, "<placeholder>" * num_token, 1)
                 current_audio_idx += 1
             prompt_strings.append(sample)
         text = [
@@ -218,49 +226,110 @@ class Mistral3AudioProcessor(PixtralProcessor):
         ]
         return text
 
+    # override to save audio-config in a separate config file
+    def save_pretrained(self, save_directory, **kwargs):
+        if os.path.isfile(save_directory):
+            raise ValueError(
+                f"Provided path ({save_directory}) should be a directory, not a file"
+            )
+        os.makedirs(save_directory, exist_ok=True)
+        audio_processor_path = os.path.join(save_directory, "audio_processor")
+        self.audio_processor.save_pretrained(audio_processor_path)
+
+        audio_processor_present = "audio_processor" in self.attributes
+        if audio_processor_present:
+            self.attributes.remove("audio_processor")
+
+        outputs = super().save_pretrained(save_directory, **kwargs)
+
+        if audio_processor_present:
+            self.attributes += ["audio_processor"]
+        return outputs
+
+    # override to load video-config from a separate config file
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        processor = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+
+        # if return_unused_kwargs a tuple is returned where the second element is 'unused_kwargs'
+        if isinstance(processor, tuple):
+            processor = processor[0]
+
+        try:
+            audio_processor = AutoFeatureExtractor.from_pretrained(
+                pretrained_model_name_or_path, subfolder="audio_processor"
+            )
+            processor.audio_processor = audio_processor
+        except EnvironmentError:
+            logger.info(
+                "You are loading `WhisperFeatureExtractor` but the indicated `path` doesn't contain a folder called "
+                "`audio_processor`. It is strongly recommended to load and save the processor again so the audio processor is saved "
+                "in a separate config."
+            )
+
+        return processor
+
+    # Copied from transformers.models.clip.processing_clip.CLIPProcessor.batch_decode with CLIP->Llama
+    def batch_decode(self, *args, **kwargs):
+        """
+        This method forwards all its arguments to LlamaTokenizerFast's [`~PreTrainedTokenizer.batch_decode`]. Please
+        refer to the docstring of this method for more information.
+        """
+        return self.tokenizer.batch_decode(*args, **kwargs)
+
+    # Copied from transformers.models.clip.processing_clip.CLIPProcessor.decode with CLIP->Llama
+    def decode(self, *args, **kwargs):
+        """
+        This method forwards all its arguments to LlamaTokenizerFast's [`~PreTrainedTokenizer.decode`]. Please refer to
+        the docstring of this method for more information.
+        """
+        return self.tokenizer.decode(*args, **kwargs)
+
+    @property
+    # Copied from transformers.models.clip.processing_clip.CLIPProcessor.model_input_names
+    def model_input_names(self):
+        tokenizer_input_names = self.tokenizer.model_input_names
+        image_processor_input_names = self.image_processor.model_input_names
+        return list(dict.fromkeys(tokenizer_input_names + image_processor_input_names))
+
     @property
     def default_chat_template(self):
         # fmt off
         return (
-            '{%- set today = strftime_now("%Y-%m-%d") %}\n'
-            "{%- set default_system_message = You are a helpful assistant"
-            "{{- bos_token }}\n\n"
-            "{%- if messages[0]['role'] == 'system' %}\n    "
-            "{%- set system_message = messages[0]['content'] %}\n"
-            "{%- set loop_messages = messages[1:] %}\n"
-            "{%- else %}\n    "
-            "{%- set system_message = default_system_message %}\n"
-            "{%- set loop_messages = messages %}\n"
-            "{%- endif %}\n"
-            "{{- '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}\n\n"
-            "{%- for message in loop_messages %}\n    "
-            "{%- if message['role'] == 'user' %}\n\t    "
-            "{%- if message['content'] is string %}\n"
-            "{{- '[INST]' + message['content'] + '[/INST]' }}\n\t"
-            "{%- else %}\n\t\t    "
-            "{{- '[INST]' }}\n\t\t    "
-            "{%- for block in message['content'] %}\n\t\t\t    "
-            "{%- if block['type'] == 'text' %}\n\t\t\t\t    "
-            "{{- block['text'] }}\n\t\t\t    "
-            "{%- elif block['type'] == 'image' or block['type'] == 'image_url' %}\n\t\t\t\t    "
-            "{{- '[IMG]' }}\n\t\t\t\t"
-            "{% elif block['type'] == 'video' or 'video' in block or block['type'] == 'video_url' %}\n\t\t\t\t    "
-            "{{- '[VIDEO]' }}\n\t\t\t\t"
-            "{%- elif block['type'] == 'audio' or block['type'] == 'audio_url' or 'audio' in block %}\n\t\t\t\t    "
-            "{{- '[AUDIO]' }}\n\t\t\t\t"
-            "{%- else %}\n\t\t\t\t    "
-            "{{- raise_exception('Only text and image blocks are supported in message content!') }}\n\t\t\t\t"
-            "{%- endif %}\n\t\t\t"
-            "{%- endfor %}\n\t\t    "
-            "{{- '[/INST]' }}\n\t\t"
-            "{%- endif %}\n    "
-            "{%- elif message['role'] == 'system' %}\n        "
-            "{{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' }}\n    "
-            "{%- elif message['role'] == 'assistant' %}\n        "
-            "{{- message['content'] + eos_token }}\n    "
-            "{%- else %}\n        "
-            "{{- raise_exception('Only user, system and assistant roles are supported!') }}\n    "
-            "{%- endif %}\n"
+            '{%- set today = strftime_now("%Y-%m-%d") %}'
+            "{%- set default_system_message = 'You are a helpful assistant' + bos_token %}"
+            "{%- if messages[0]['role'] == 'system' %}"
+            "   {%- set system_message = messages[0]['content'] %}"
+            "   {%- set loop_messages = messages[1:] %}"
+            "{%- else %}"
+            "   {%- set system_message = default_system_message %}"
+            "   {%- set loop_messages = messages %}"
+            "{%- endif %}"
+            "{{- '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}"
+            "{%- for message in loop_messages %}"
+            "   {%- if message['role'] == 'user' %}"
+            "       {%- if message['content'] is string %}\n"
+            "           {{- '[INST]' + message['content'] + '[/INST]' }}"
+            "       {%- else %}"
+            "           {{- '[INST]' }}"
+            "           {%- for block in message['content'] %}"
+            "               {%- if block['type'] == 'text' %}"
+            "                   {{- block['text'] }}"
+            "               {%- elif block['type'] == 'image' or block['type'] == 'image_url' %}"
+            "                   {{- '[IMG]' }}"
+            "               {%- elif block['type'] == 'video' or 'video' in block or block['type'] == 'video_url' %}"
+            "                   {{- '[VIDEO]' }}"
+            "               {%- elif block['type'] == 'audio' or block['type'] == 'audio_url' or 'audio' in block %}"
+            "                   {{- '[AUDIO]' }}"
+            "               {%- endif %}"
+            "           {%- endfor %}"
+            "           {{- '[/INST]' }}"
+            "       {%- endif %}"
+            "   {%- elif message['role'] == 'system' %}"
+            "       {{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' }}"
+            "   {%- elif message['role'] == 'assistant' %}"
+            "       {{- message['content'] + eos_token }}"
+            "   {%- endif %}"
             "{%- endfor %}"
         )
         # fmt on

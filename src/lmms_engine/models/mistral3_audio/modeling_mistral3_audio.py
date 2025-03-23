@@ -64,7 +64,7 @@ class Mistral3AudioProjector(nn.Module):
     def __init__(self, config: Mistral3AudioConfig):
         super().__init__()
         self.linear_1 = nn.Linear(
-            config.audio_config.hidden_size,
+            config.audio_config.d_model,
             config.text_config.hidden_size,
             bias=config.multimodal_projector_bias,
         )
@@ -83,6 +83,9 @@ class Mistral3AudioProjector(nn.Module):
 
 
 class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
+    _tied_weights_keys = ["language_model.lm_head.weight"]
+    config_class = Mistral3AudioConfig
+
     def __init__(self, config: Mistral3AudioConfig):
         PreTrainedModel.__init__(self, config)
         self.vision_tower = AutoModel.from_config(config.vision_config)
