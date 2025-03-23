@@ -58,7 +58,10 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
                 )
             images = [load_image(im) if isinstance(im, str) else im for im in images]
             image_inputs = self.processor.image_processor(
-                images, patch_size=self.patch_size, **output_kwargs["images_kwargs"]
+                images,
+                patch_size=self.patch_size,
+                return_tensors="pt",
+                **output_kwargs["images_kwargs"],
             )
         else:
             image_inputs = {}
@@ -82,7 +85,10 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
         if videos is not None:
             videos = make_batched_videos(videos)
             video_inputs = self.processor.image_processor(
-                videos, patch_size=self.patch_size, **output_kwargs["images_kwargs"]
+                videos,
+                patch_size=self.patch_size,
+                return_tensors="pt",
+                **output_kwargs["images_kwargs"],
             )
             image_sizes = iter(video_inputs["image_sizes"])
             num_video_tokens = []
@@ -107,6 +113,7 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
                 sampling_rate=sampling_rate,
                 return_attention_mask=True,
                 padding="max_length",
+                return_tensors="pt",
                 **kwargs,
             )
             audio_inputs["audio_attention_mask"] = audio_inputs.pop(
@@ -141,8 +148,6 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
             for key, value in video_inputs.items():
                 inputs[key] = value
 
-        print(self.processor.batch_decode(inputs["input_ids"]))
-
         return inputs
 
     def get_mistral_template_labels(
@@ -168,11 +173,9 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
                 [{"role": "system", "content": system_message}],
             )
             target += [-100] * len(input_id)
-            print(f"Input Id here {input_id}")
         for message in hf_messages:
             role = message["role"]
-            encode_id = self.processor.apply_chat_template([message], tokenize=True)
-            print(f"Encode Id here {encode_id}")
+            encode_id = self.processor.apply_chat_template([message], tokenize=True)[0]
             # Should be 3 if instead of if else, so that can expand for each case
             if self.image_token_id in encode_id:
                 encode_id, used_images = self._expand_encode_id_image_tokens(
@@ -190,11 +193,18 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
                 )
                 video_start_from += used_video
 
+            if role == "assistant":
+                # It add a bos_token at the beginning, we remove
+                encode_id = encode_id[1:]
             input_id += encode_id
             if role in ["user", "system"]:
                 target += [-100] * len(encode_id)
+            else:
+                target += encode_id
             # Mistral got no generation prompt
 
+        # printed_target = [t if t >=0 else 0 for t in target]
+        # print(f"Input : {self.processor.decode(input_id)} \n Target : {self.processor.decode(printed_target)}")
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
             if encode_id in unmask_tokens_idx:
@@ -219,7 +229,6 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
         return (
             '{%- set today = strftime_now("%Y-%m-%d") %}'
             "{%- set loop_messages = messages %}"
-            "{%- endif %}"
             "{%- for message in loop_messages %}"
             "   {%- if message['role'] == 'user' %}"
             "       {%- if message['content'] is string %}\n"
@@ -240,9 +249,28 @@ class Mistral3AudioDataProcessor(KinoQwen2_5_DataProcessor):
             "           {{- '[/INST]' }}"
             "       {%- endif %}"
             "   {%- elif message['role'] == 'system' %}"
-            "       {{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' }}"
+            "       {%- if message['content'] is string %}"
+            "           {{- '[SYSTEM_PROMPT]' + message['content'] + '[/SYSTEM_PROMPT]' }}"
+            "       {%- else %}"
+            "           {{- '[SYSTEM_PROMPT]' }}"
+            "           {%- for block in message['content'] %}"
+            "               {%- if block['type'] == 'text' %}"
+            "                   {{- block['text'] }}"
+            "               {%- endif %}"
+            "           {%- endfor %}"
+            "           {{- '[/SYSTEM_PROMPT]' }}"
+            "       {%- endif %}"
             "   {%- elif message['role'] == 'assistant' %}"
-            "       {{- message['content'] + eos_token }}"
+            "      {%- if message['content'] is string %}"
+            "           {{- message['content'] + eos_token}}"
+            "       {%- else %}"
+            "           {%- for block in message['content'] %}"
+            "               {%- if block['type'] == 'text' %}"
+            "                   {{- block['text'] }}"
+            "               {%- endif %}"
+            "           {%- endfor %}"
+            "           {{- eos_token}}"
+            "       {%- endif %}"
             "   {%- endif %}"
             "{%- endfor %}"
         )

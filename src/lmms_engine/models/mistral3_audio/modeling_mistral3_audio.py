@@ -267,14 +267,14 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
             audio_features, audio_output_lengths = self.prepare_audio_values(
                 audio_values, audio_attention_mask
             )
-            n_audio_tokens = (input_ids == self.config.audio_token_id).sum().item()
+            n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
             n_audio_features = audio_output_lengths.sum()
             if n_audio_tokens != n_audio_features:
                 raise ValueError(
                     f"Audio features and image tokens do not match: tokens: {n_audio_tokens}, features {n_audio_features}"
                 )
             audio_mask = (
-                (input_ids == self.config.audio_token_id)
+                (input_ids == self.config.audio_token_index)
                 .unsqueeze(-1)
                 .expand_as(inputs_embeds)
                 .to(inputs_embeds.device)
