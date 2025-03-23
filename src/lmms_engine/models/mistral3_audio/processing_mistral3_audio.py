@@ -197,7 +197,9 @@ class Mistral3AudioProcessor(ProcessorMixin):
             # Computes the output length of the convolutional layers and the output length of the audio encoder
             input_lengths = (audio_inputs["audio_attention_mask"].sum(-1) - 1) // 2 + 1
             num_audio_tokens = (input_lengths - 2) // 2 + 1
-            text = self.expand_audio_tokens(text, num_audio_tokens, self.audio_token)
+            prompt_strings = self.expand_audio_tokens(
+                prompt_strings, num_audio_tokens, self.audio_token
+            )
         else:
             audio_inputs = {}
 
