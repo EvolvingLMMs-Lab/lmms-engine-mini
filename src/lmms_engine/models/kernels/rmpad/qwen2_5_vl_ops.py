@@ -8,7 +8,10 @@ from transformers.modeling_attn_mask_utils import (
     _prepare_4d_causal_attention_mask,
     _prepare_4d_causal_attention_mask_for_sdpa,
 )
-from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import rotate_half
+from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
+    apply_multimodal_rotary_pos_emb,
+    rotate_half,
+)
 from transformers.utils import is_flash_attn_2_available, logging
 
 from lmms_engine.utils import Logging
@@ -21,78 +24,14 @@ logger = logging.get_logger(__name__)
 if is_flash_attn_2_available():
     try:
         from flash_attn import flash_attn_func, flash_attn_varlen_func
-        from flash_attn.bert_padding import (  # noqa
-            index_first_axis,
-            pad_input,
-            unpad_input,
-        )
-        from flash_attn.ops.rms_norm import rms_norm
-
-        faster_llama_rmsnorm = rms_norm
 
         _flash_supports_window_size = "window_size" in list(
             inspect.signature(flash_attn_func).parameters
         )
     except:
-        Logging.info(
-            "Found flash_attn but no layer norm install. Please install with csrc/layer_norm in fa2"
+        raise ModuleNotFoundError(
+            "flash_attn is not available. Please install it via `pip install flash_attn`."
         )
-
-
-try:
-    from flash_attn.layers.rotary import apply_rotary_emb_func
-except:
-    apply_rotary_emb_func = None
-    logger.warning_once(
-        "fail to load faster rotary ops, use PyTorch version by default. Please check image version"
-    )
-
-
-def apply_multimodal_rotary_pos_emb_unpad(
-    q, k, cos, sin, mrope_section, cur_seq_len, unsqueeze_dim=1
-):
-    """Applies Rotary Position Embedding with Multimodal Sections to the query and key tensors (https://qwenlm.github.io/blog/qwen2-vl/).
-
-    Explanation:
-        Multimodal 3D rotary position embedding is an extension to 1D rotary position embedding. The input embedding
-        sequence contains vision (images / videos) embedding and text embedding or just contains text embedding. For
-        vision embedding part, we apply rotary position embedding on temporal, height and width dimension separately.
-        Here we split the channel dimension to 3 chunks for the temporal, height and width rotary position embedding.
-        For text embedding part, we just apply 1D rotary position embedding. The three rotary position index (temporal,
-        height and width) of text embedding is always the same, so the text embedding rotary position embedding has no
-        difference with modern LLMs.
-
-    Args:
-        q (`torch.Tensor`): The query tensor.
-        k (`torch.Tensor`): The key tensor.
-        cos (`torch.Tensor`): The cosine part of the rotary embedding.
-        sin (`torch.Tensor`): The sine part of the rotary embedding.
-        position_ids (`torch.Tensor`):
-            The position indices of the tokens corresponding to the query and key tensors. For example, this can be
-            used to pass offsetted position ids when working with a KV-cache.
-        mrope_section(`List(int)`):
-            Multimodal rope section is for channel dimension of temporal, height and width in rope calculation.
-        unsqueeze_dim (`int`, *optional*, defaults to 1):
-            The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
-            sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
-            that cos[position_ids] and sin[position_ids] have the shape [batch_size, seq_len, head_dim]. Then, if q and
-            k have the shape [batch_size, heads, seq_len, head_dim], then setting unsqueeze_dim=1 makes
-            cos[position_ids] and sin[position_ids] broadcastable to the shapes of q and k. Similarly, if q and k have
-            the shape [batch_size, seq_len, heads, head_dim], then set unsqueeze_dim=2.
-    Returns:
-        `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
-    """
-    mrope_section = mrope_section * 2
-    cos = torch.cat(
-        [m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1
-    ).unsqueeze(unsqueeze_dim)
-    sin = torch.cat(
-        [m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1
-    ).unsqueeze(unsqueeze_dim)
-
-    q_embed = (q * cos) + (rotate_half(q) * sin)
-    k_embed = (k * cos) + (rotate_half(k) * sin)
-    return q_embed, k_embed
 
 
 # The forward func for the base model of the Qwen VL
@@ -183,7 +122,8 @@ def model_forward(
         for bs in range(batch_size):
             start = pos_seq_lens[bs]
             end = pos_seq_lens[bs + 1]
-            position_ids_unpadded[bs].append(pos_id_unpadded[start:end])
+            # Expand the bs dim
+            position_ids_unpadded[bs].append(pos_id_unpadded[start:end].unsqueeze(1))
     # Then this is split in to a list with each element to its correspond (3, seq_len)
     position_ids_unpadded = [torch.stack(pos_id) for pos_id in position_ids_unpadded]
     causal_mask = self._update_causal_mask(
@@ -353,10 +293,29 @@ def attn_forward(
         -1, self.num_key_value_heads, self.head_dim
     )
     # Because the input can be padded, the absolute sequence length depends on the max position id.
-    cos, sin = position_embeddings
-    query_states, key_states = apply_multimodal_rotary_pos_emb_unpad(
-        query_states, key_states, cos, sin, self.rope_scaling["mrope_section"]
-    )
+    cu_split_size = cu_seq_lens.diff().tolist()
+    q_states = query_states.split(cu_split_size, dim=0)
+    k_states = key_states.split(cu_split_size, dim=0)
+    embedded_q_states = []
+    embedded_k_states = []
+    for idx, (pos_embed, q, k) in enumerate(
+        zip(position_embeddings, q_states, k_states)
+    ):
+        cos, sin = pos_embed
+        q_embed, k_embed = apply_multimodal_rotary_pos_emb(
+            q.unsqueeze(0).transpose(1, 2),
+            k.unsqueeze(0).transpose(1, 2),
+            cos,
+            sin,
+            self.rope_scaling["mrope_section"],
+        )
+        embedded_q_states.append(q_embed.squeeze(0))
+        embedded_k_states.append(k_embed.squeeze(0))
+    query_states = torch.cat(embedded_q_states, dim=1)
+    key_states = torch.cat(embedded_k_states, dim=1)
+    # Reashape to the expected shape for Flash Attention
+    query_states = query_states.transpose(0, 1)
+    key_states = key_states.transpose(0, 1)
 
     use_sliding_windows = (
         _flash_supports_window_size
@@ -431,8 +390,9 @@ def attn_forward(
         value_states = value_states.to(target_dtype)
 
     max_seqlen = (
-        torch.diff(cu_seq_lens).max().item() if cu_seq_lens is not None else None,
+        torch.diff(cu_seq_lens).max().item() if cu_seq_lens is not None else None
     )
+
     window_size = (-1, -1)
 
     attn_output = flash_attn_varlen_func(
