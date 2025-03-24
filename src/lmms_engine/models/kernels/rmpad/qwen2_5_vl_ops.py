@@ -8,16 +8,12 @@ from transformers.modeling_attn_mask_utils import (
     _prepare_4d_causal_attention_mask,
     _prepare_4d_causal_attention_mask_for_sdpa,
 )
+from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import rotate_half
 from transformers.utils import is_flash_attn_2_available, logging
 
 from lmms_engine.utils import Logging
 
-from .utils import (
-    BaseModelOutputWithPastAndRmpad,
-    _get_unpad_data,
-    _unpad_input,
-    apply_rotary_pos_emb_unpad,
-)
+from .utils import BaseModelOutputWithPastAndRmpad, _get_unpad_data, _unpad_input
 
 logger = logging.get_logger(__name__)
 
@@ -52,7 +48,55 @@ except:
     )
 
 
-# The forward func for the base model of a LM
+def apply_multimodal_rotary_pos_emb_unpad(
+    q, k, cos, sin, mrope_section, cur_seq_len, unsqueeze_dim=1
+):
+    """Applies Rotary Position Embedding with Multimodal Sections to the query and key tensors (https://qwenlm.github.io/blog/qwen2-vl/).
+
+    Explanation:
+        Multimodal 3D rotary position embedding is an extension to 1D rotary position embedding. The input embedding
+        sequence contains vision (images / videos) embedding and text embedding or just contains text embedding. For
+        vision embedding part, we apply rotary position embedding on temporal, height and width dimension separately.
+        Here we split the channel dimension to 3 chunks for the temporal, height and width rotary position embedding.
+        For text embedding part, we just apply 1D rotary position embedding. The three rotary position index (temporal,
+        height and width) of text embedding is always the same, so the text embedding rotary position embedding has no
+        difference with modern LLMs.
+
+    Args:
+        q (`torch.Tensor`): The query tensor.
+        k (`torch.Tensor`): The key tensor.
+        cos (`torch.Tensor`): The cosine part of the rotary embedding.
+        sin (`torch.Tensor`): The sine part of the rotary embedding.
+        position_ids (`torch.Tensor`):
+            The position indices of the tokens corresponding to the query and key tensors. For example, this can be
+            used to pass offsetted position ids when working with a KV-cache.
+        mrope_section(`List(int)`):
+            Multimodal rope section is for channel dimension of temporal, height and width in rope calculation.
+        unsqueeze_dim (`int`, *optional*, defaults to 1):
+            The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
+            sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
+            that cos[position_ids] and sin[position_ids] have the shape [batch_size, seq_len, head_dim]. Then, if q and
+            k have the shape [batch_size, heads, seq_len, head_dim], then setting unsqueeze_dim=1 makes
+            cos[position_ids] and sin[position_ids] broadcastable to the shapes of q and k. Similarly, if q and k have
+            the shape [batch_size, seq_len, heads, head_dim], then set unsqueeze_dim=2.
+    Returns:
+        `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
+    """
+    mrope_section = mrope_section * 2
+    cos = torch.cat(
+        [m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+    sin = torch.cat(
+        [m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+
+# The forward func for the base model of the Qwen VL
+# Most of the part is similar, but the pos id is 3d, so we handle here
 def model_forward(
     self,
     input_ids: torch.LongTensor = None,
@@ -106,79 +150,64 @@ def model_forward(
 
     past_key_values_length = 0
 
-    if use_cache:
-        use_legacy_cache = not isinstance(past_key_values, Cache)
-        if use_legacy_cache:
-            past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-        past_key_values_length = past_key_values.get_usable_length(seq_length)
+    # torch.jit.trace() doesn't support cache objects in the output
+    if use_cache and past_key_values is None and not torch.jit.is_tracing():
+        past_key_values = DynamicCache()
 
+    # Hardcode from https://github.com/huggingface/transformers/blob/c9d1e5238a752813ba91a8751a638a09b5efbb73/src/transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py#L1164-L1174
+    # Because in forward we don't need to handle cache
+    past_seen_tokens = 0
+    cache_position = torch.arange(
+        past_seen_tokens,
+        past_seen_tokens + inputs_embeds.shape[1],
+        device=inputs_embeds.device,
+    )
+    # the hard coded `3` is for temporal, height and width.
     if position_ids is None:
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
-        position_ids = torch.arange(
-            past_key_values_length,
-            seq_length + past_key_values_length,
-            dtype=torch.long,
-            device=device,
+        position_ids = cache_position.view(1, 1, -1).expand(
+            3, inputs_embeds.shape[0], -1
         )
-        # 1 * 5695(seq_len) [0,1,2,3,4,5,...... 5000, 5001,5002]
-        position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
-    else:
-        position_ids = position_ids.view(-1, seq_length).long()
+    elif position_ids.dim() == 2:
+        position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)
 
     if inputs_embeds is None:
         inputs_embeds = self.embed_tokens(input_ids)
 
     indices, cu_seq_lens = None, None
-    if position_ids.shape[0] != inputs_embeds.shape[0]:
-        position_ids, _, _, _ = _unpad_input(
-            position_ids.view(1, position_ids.shape[-1], 1).repeat(
-                inputs_embeds.shape[0], 1, 1
-            ),
-            attention_mask,
-        )
-    else:
-        position_ids, _, _, _ = _unpad_input(position_ids.unsqueeze(-1), attention_mask)
+    # Different from LM, here is 3D rope
+    # (3, bs, seq_len)
+    # So we unpad for each D (temporal, height, width)
+    position_ids_unpadded = [[] for _ in range(batch_size)]
+    for pos_id in position_ids:
+        pos_id_unpadded, _, pos_seq_lens, _ = _unpad_input(pos_id, attention_mask)
+        for bs in range(batch_size):
+            start = pos_seq_lens[bs]
+            end = pos_seq_lens[bs + 1]
+            position_ids_unpadded[bs].append(pos_id_unpadded[start:end])
+    # Then this is split in to a list with each element to its correspond (3, seq_len)
+    position_ids_unpadded = [torch.stack(pos_id) for pos_id in position_ids_unpadded]
+    causal_mask = self._update_causal_mask(
+        attention_mask,
+        inputs_embeds,
+        cache_position,
+        past_key_values,
+        output_attentions,
+    )
     inputs_embeds, indices, cu_seq_lens, _ = _unpad_input(
         inputs_embeds.unsqueeze(-1), attention_mask
     )
-    inputs_embeds, position_ids = inputs_embeds.squeeze(-1), position_ids.squeeze(-1)
-
-    if (
-        attention_mask is not None
-        and self._attn_implementation == "flash_attention_2"
-        and use_cache
-    ):
-        is_padding_right = attention_mask[:, -1].sum().item() != batch_size
-        if is_padding_right:
-            raise ValueError(
-                "You are attempting to perform batched generation with padding_side='right'"
-                " this may lead to unexpected behaviour for Flash Attention version of Qwen2. Make sure to "
-                " call `tokenizer.padding_side  = 'left'` before tokenizing the input. "
-            )
-    if self._attn_implementation == "flash_attention_2":
-        # 2d mask is passed through the layers
-        # attention_mask = attention_mask if (attention_mask is not None and 0 in attention_mask) else None
-        attention_mask = attention_mask if (attention_mask is not None) else None
-    elif self._attn_implementation == "sdpa" and not output_attentions:
-        # output_attentions=True can not be supported when using SDPA, and we fall back on
-        # the manual implementation that requires a 4D causal mask in all cases.
-        attention_mask = _prepare_4d_causal_attention_mask_for_sdpa(
-            attention_mask,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
-        )
-    else:
-        # 4d mask is passed through the layers
-        attention_mask = _prepare_4d_causal_attention_mask(
-            attention_mask,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
-            sliding_window=self.config.sliding_window,
-        )
+    inputs_embeds = inputs_embeds.squeeze(-1)
 
     hidden_states = inputs_embeds
+
+    # create position embeddings to be shared across the decoder layers
+    # The pos id has been splited, we get pos embed separately
+    position_embeddings = []
+    for bs in range(batch_size):
+        pos_embed = self.rotary_emb(
+            hidden_states[bs : bs + 1], position_ids_unpadded[bs]
+        )
+        position_embeddings.append(pos_embed)
 
     # decoder layers
     all_hidden_states = () if output_hidden_states else None
@@ -193,25 +222,27 @@ def model_forward(
             layer_outputs = torch.utils.checkpoint.checkpoint(
                 decoder_layer.__call__,
                 hidden_states,
-                attention_mask,
+                causal_mask,
                 position_ids,
                 None,
                 output_attentions,
                 use_cache,
                 cu_seq_lens,
                 indices,
+                position_embeddings,
                 use_reentrant=False,
             )
         else:
             layer_outputs = decoder_layer(
                 hidden_states,
-                attention_mask,
+                causal_mask,
                 position_ids,
                 None,
                 output_attentions,
                 indices=indices,
                 cu_seq_lens=cu_seq_lens,
                 use_cache=use_cache,
+                position_embeddings=position_embeddings,
             )
 
         hidden_states = layer_outputs[0]
@@ -228,13 +259,7 @@ def model_forward(
     if output_hidden_states:
         all_hidden_states += (hidden_states,)
 
-    next_cache = None
-    if use_cache:
-        next_cache = (
-            next_decoder_cache.to_legacy_cache()
-            if use_legacy_cache and next_decoder_cache is not None
-            else next_decoder_cache
-        )
+    next_cache = next_decoder_cache if use_cache else None
 
     if not return_dict:
         return tuple(
@@ -263,6 +288,9 @@ def decoder_layer_forward(
     use_cache: Optional[bool] = False,
     cu_seq_lens: Optional[torch.IntTensor] = None,
     indices: Optional[torch.IntTensor] = None,
+    position_embeddings: Optional[
+        List[Tuple[torch.Tensor, torch.Tensor]]
+    ] = None,  # necessary, but kept here for BC
     **kwargs,
 ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
     residual = hidden_states
@@ -279,6 +307,7 @@ def decoder_layer_forward(
         use_cache=use_cache,
         cu_seq_lens=cu_seq_lens,
         indices=indices,
+        position_embeddings=position_embeddings,
     )
     hidden_states = residual + hidden_states
 
@@ -310,16 +339,9 @@ def attn_forward(
     use_cache: bool = False,
     cu_seq_lens: Optional[torch.IntTensor] = None,
     indices: Optional[torch.IntTensor] = None,
+    position_embeddings: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None,
     **kwargs,
 ):
-    if "padding_mask" in kwargs:
-        warnings.warn(
-            "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
-        )
-
-        # overwrite attention_mask with padding_mask
-        attention_mask = kwargs.pop("padding_mask")
-
     bsz = hidden_states.shape[0]
     q_len = torch.max(position_ids).item() + 1
     kv_seq_len = q_len
@@ -330,33 +352,11 @@ def attn_forward(
     value_states = self.v_proj(hidden_states).view(
         -1, self.num_key_value_heads, self.head_dim
     )
-    cos, sin = self.rotary_emb(value_states, seq_len=q_len)
-
-    if apply_rotary_emb_func is not None:
-        cos = cos.squeeze().index_select(
-            dim=0, index=position_ids.squeeze()
-        )  # [total_bs_seq, head_dim]
-        sin = sin.squeeze().index_select(dim=0, index=position_ids.squeeze())
-        # cos = cos.squeeze().index_select(dim=0, index=position_ids.squeeze()).unsqueeze(1) # [total_bs_seq, 1, head_dim]
-        # sin = sin.squeeze().index_select(dim=0, index=position_ids.squeeze()).unsqueeze(1)
-        query_states = apply_rotary_emb_func(
-            query_states.unsqueeze(0),
-            cos[:, : self.head_dim // 2],
-            sin[:, : self.head_dim // 2],
-            inplace=True,
-        ).squeeze(0)
-        key_states = apply_rotary_emb_func(
-            key_states.unsqueeze(0),
-            cos[:, : self.head_dim // 2],
-            sin[:, : self.head_dim // 2],
-            inplace=True,
-        ).squeeze(0)
-        # print(query_states.shape, key_states.shape, value_states.shape)
-        # assert 1 > 2
-    else:
-        query_states, key_states = apply_rotary_pos_emb_unpad(
-            query_states, key_states, cos, sin, position_ids
-        )
+    # Because the input can be padded, the absolute sequence length depends on the max position id.
+    cos, sin = position_embeddings
+    query_states, key_states = apply_multimodal_rotary_pos_emb_unpad(
+        query_states, key_states, cos, sin, self.rope_scaling["mrope_section"]
+    )
 
     use_sliding_windows = (
         _flash_supports_window_size

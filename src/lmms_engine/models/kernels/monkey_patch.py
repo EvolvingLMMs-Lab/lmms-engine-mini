@@ -95,11 +95,11 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         modeling_qwen2_5_vl.Qwen2MLP = LigerSwiGLUMLP
 
     if use_rmpad:
-        from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward
-        from .rmpad.qwen2_ops import (
+        from .rmpad.qwen2_5_vl_ops import attn_forward as qwen2_ops_attn_forward
+        from .rmpad.qwen2_5_vl_ops import (
             decoder_layer_forward as qwen2_ops_decoder_layer_forward,
         )
-        from .rmpad.qwen2_ops import model_forward as qwen2_ops_model_forward
+        from .rmpad.qwen2_5_vl_ops import model_forward as qwen2_ops_model_forward
 
         modeling_qwen2_5_vl.Qwen2_5_VLModel.forward = qwen2_ops_model_forward
         modeling_qwen2_5_vl.Qwen2_5_VLDecoderLayer.forward = (
