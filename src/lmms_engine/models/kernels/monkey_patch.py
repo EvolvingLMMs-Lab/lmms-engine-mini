@@ -1,4 +1,5 @@
 import inspect
+from functools import partial
 from typing import Callable
 
 try:
@@ -41,6 +42,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     rms_norm: bool = True,
     swiglu: bool = True,
     model: PreTrainedModel = None,
+    use_rmpad: bool = False,
 ) -> None:
     """
     Apply Liger kernels to replace original implementation in HuggingFace Qwen2-VL models.
@@ -66,6 +68,9 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     from ..qwen2_5_vl_audio import modeling_qwen2_5_vl as kino_modeling_qwen2_5_vl
     from .qwen2_5_vl_liger import lce_forward as qwen2_5_vl_lce_forward
 
+    if use_rmpad:
+        qwen2_5_vl_lce_forward = partial(qwen2_5_vl_lce_forward, use_rmpad=use_rmpad)
+
     if rope:
         modeling_qwen2_5_vl.apply_multimodal_rotary_pos_emb = (
             liger_multimodal_rotary_pos_emb
@@ -80,6 +85,19 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         )
     if swiglu:
         modeling_qwen2_5_vl.Qwen2MLP = LigerSwiGLUMLP
+
+    if use_rmpad:
+        from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward
+        from .rmpad.qwen2_ops import (
+            decoder_layer_forward as qwen2_ops_decoder_layer_forward,
+        )
+        from .rmpad.qwen2_ops import model_forward as qwen2_ops_model_forward
+
+        modeling_qwen2_5_vl.Qwen2_5_VLModel.forward = qwen2_ops_model_forward
+        modeling_qwen2_5_vl.Qwen2_5_VLDecoderLayer.forward = (
+            qwen2_ops_decoder_layer_forward
+        )
+        modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
 
     if model is not None:
         # The model instance already exists, so we need to additionally patch the

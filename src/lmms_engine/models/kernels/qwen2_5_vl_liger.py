@@ -48,6 +48,7 @@ def lce_forward(
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
     input_mode: Optional[torch.Tensor] = None,
+    use_rmpad: Optional[bool] = False,
 ) -> Union[Tuple, Qwen2_5_VLCausalLMOutputWithPast]:
     output_attentions = (
         output_attentions
@@ -187,6 +188,7 @@ def lce_forward(
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
     flops = self.calc_gpt_flops(attention_mask)
+    kwargs = {"cache_position": cache_position}
     outputs = self.model(
         input_ids=None,
         position_ids=position_ids,
@@ -197,8 +199,10 @@ def lce_forward(
         output_attentions=output_attentions,
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
-        cache_position=cache_position,
+        **kwargs,
     )
+    seq_lens = outputs.get("seq_lens", None)
+    word_idx = outputs.get("word_idx", None)
 
     hidden_states = outputs[0]
 
@@ -206,6 +210,8 @@ def lce_forward(
     logits = None
 
     if self.training and (labels is not None):
+        if use_rmpad:
+            labels = labels.view(-1)[word_idx.long()]
         shift_hidden_states = hidden_states[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
 

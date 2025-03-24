@@ -54,6 +54,7 @@ class BaseTrainer(ABC):
         return model
 
     def _apply_linger_kernel(self):
+        kwargs = {"use_rmpad": self.config.trainer_args.use_rmpad}
         try:
             from liger_kernel.transformers import _apply_liger_kernel_to_instance
             from liger_kernel.transformers.monkey_patch import (
@@ -70,7 +71,7 @@ class BaseTrainer(ABC):
         )
         if model_type in CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN:
             Logging.info(f"Try to apply liger kernel on the model {model_type}")
-            _apply_liger_kernel_to_custom_instance(self.model)
+            _apply_liger_kernel_to_custom_instance(self.model, **kwargs)
         # If the model itself is already in liger kernel,
         # we should not apply the liger kernel again
         elif model_type in MODEL_TYPE_TO_APPLY_LIGER_FN:

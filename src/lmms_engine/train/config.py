@@ -15,6 +15,7 @@ class TrainingArguments(transformers.TrainingArguments):
     freeze_modules: Optional[List[str]] = None
     only_save_mm_adapter: Optional[bool] = False
     use_lora: Optional[bool] = False
+    use_rmpad: Optional[bool] = False
 
 
 @dataclass
