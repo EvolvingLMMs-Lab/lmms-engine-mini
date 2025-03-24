@@ -369,14 +369,14 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
         past_key_values=None,
         inputs_embeds=None,
         pixel_values=None,
+        attention_mask=None,
+        cache_position=None,
+        logits_to_keep=None,
+        audio_values=None,
+        audio_attention_mask=None,
         image_sizes=None,
         pixel_values_videos=None,
         image_sizes_videos=None,
-        audio_values=None,
-        audio_attention_mask=None,
-        attention_mask=None,
-        cache_position=None,
-        num_logits_to_keep=None,
         **kwargs,
     ):
         # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
@@ -387,7 +387,7 @@ class Mistral3AudioForConditionalGeneration(Mistral3ForConditionalGeneration):
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             cache_position=cache_position,
-            num_logits_to_keep=num_logits_to_keep,
+            logits_to_keep=logits_to_keep,
             **kwargs,
         )
 
