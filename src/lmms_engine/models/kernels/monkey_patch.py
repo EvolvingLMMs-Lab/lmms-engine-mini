@@ -1,5 +1,5 @@
 import inspect
-from functools import partial
+from functools import partial, wraps
 from typing import Callable
 
 try:
@@ -69,7 +69,15 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     from .qwen2_5_vl_liger import lce_forward as qwen2_5_vl_lce_forward
 
     if use_rmpad:
-        qwen2_5_vl_lce_forward = partial(qwen2_5_vl_lce_forward, use_rmpad=use_rmpad)
+
+        def wrap_forward(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(use_rmpad=use_rmpad, *args, **kwargs)
+
+            return wrapper
+
+        qwen2_5_vl_lce_forward = wrap_forward(qwen2_5_vl_lce_forward)
 
     if rope:
         modeling_qwen2_5_vl.apply_multimodal_rotary_pos_emb = (
@@ -99,6 +107,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         )
         modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
 
+    # TODO : Add binding to existing models for rmpad
     if model is not None:
         # The model instance already exists, so we need to additionally patch the
         # instance variables that reference already-instantiated modules
