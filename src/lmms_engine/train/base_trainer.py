@@ -154,6 +154,8 @@ class BaseTrainer(ABC):
 
     def _build_lora_on_model(self, model):
         assert self.config.trainer_args.use_lora, "You should set use_lora to True"
+        if self.lora_configs is None:
+            return model
         for lora_config in self.lora_configs:
             adapter_name = lora_config.adapter_name
             peft_model = get_peft_model(
