@@ -1047,7 +1047,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        num_logits_to_keep: int = 0,
+        logits_to_keep: int = 0,
     ) -> Union[Tuple, LlavaOnevisionCausalLMOutputWithPast]:
         r"""
         Args:
@@ -1307,7 +1307,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
-            num_logits_to_keep=num_logits_to_keep,
+            logits_to_keep=logits_to_keep,
         )
 
         logits = outputs[0]
@@ -1360,14 +1360,14 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
         past_key_values=None,
         inputs_embeds=None,
         pixel_values=None,
+        attention_mask=None,
+        cache_position=None,
+        logits_to_keep=None,
+        audio_values=None,
+        audio_attention_mask=None,
         image_sizes=None,
         pixel_values_videos=None,
         image_sizes_videos=None,
-        audio_values=None,
-        audio_attention_mask=None,
-        attention_mask=None,
-        cache_position=None,
-        num_logits_to_keep=None,
         **kwargs,
     ):
         # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
@@ -1378,7 +1378,7 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             cache_position=cache_position,
-            num_logits_to_keep=num_logits_to_keep,
+            logits_to_keep=logits_to_keep,
             **kwargs,
         )
 
