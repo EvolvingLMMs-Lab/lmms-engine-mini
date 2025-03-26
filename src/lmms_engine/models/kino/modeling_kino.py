@@ -757,36 +757,37 @@ LLAVA_ONEVISION_INPUTS_DOCSTRING = r"""
 class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixin):
     def __init__(self, config: KinoConfig):
         super().__init__(config)
-        if config.vision_config.model_type == "qwen2_vl":
-            self.vision_tower = Qwen2VisionTransformerPretrainedModel._from_config(
-                config.vision_config
-            )
+        if config.vision_config is not None:
+            if config.vision_config.model_type == "qwen2_vl":
+                self.vision_tower = Qwen2VisionTransformerPretrainedModel._from_config(
+                    config.vision_config
+                )
+            else:
+                self.vision_tower = AutoModel.from_config(config.vision_config)
+            self.use_vision_tower = True
         else:
-            self.vision_tower = AutoModel.from_config(config.vision_config)
-        self.audio_tower = Qwen2AudioEncoder(config.audio_config)
+            self.vision_tower = None
+            self.use_vision_tower = False
 
-        if config.projector_type == "mlp":
-            self.multi_modal_projector = LlavaOnevisionMultiModalProjector(config)
-        elif config.projector_type == "identity":
-            self.multi_modal_projector = nn.Identity()
+        if self.use_vision_tower:
+            if config.projector_type == "mlp":
+                self.multi_modal_projector = LlavaOnevisionMultiModalProjector(config)
+            elif config.projector_type == "identity":
+                self.multi_modal_projector = nn.Identity()
+            if config.vision_aspect_ratio == "navit":
+                self.image_newline = None
+            else:
+                self.image_newline = nn.Parameter(
+                    torch.randn(config.text_config.hidden_size, dtype=self.dtype)
+                    * embed_std
+                )
+
+        self.audio_tower = Qwen2AudioEncoder(config.audio_config)
         self.audio_modal_projector = LlavaOnevisionAudioMultiModalProjector(config)
         embed_std = 1 / math.sqrt(config.text_config.hidden_size)
-        if config.vision_aspect_ratio == "navit":
-            self.image_newline = None
-        else:
-            self.image_newline = nn.Parameter(
-                torch.randn(config.text_config.hidden_size, dtype=self.dtype)
-                * embed_std
-            )
 
         self.vocab_size = config.text_config.vocab_size
-        self.use_custom_qwen = (
-            self.config.use_rmpad or self.config.text_config.model_type == "qwen2"
-        ) and self.config._attn_implementation == "flash_attention_2"
-        if self.use_custom_qwen:
-            self.language_model = Qwen2ForCausalLM(config.text_config)
-        else:
-            self.language_model = AutoModelForCausalLM.from_config(config.text_config)
+        self.language_model = AutoModelForCausalLM.from_config(config.text_config)
         self.post_init()
 
     # Copied from transformers.models.llava_next.modeling_llava_next.LlavaNextForConditionalGeneration.get_input_embeddings
@@ -1094,7 +1095,6 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
         >>> processor.batch_decode(output, skip_special_tokens=True)[0]
         "user\n\nWhat is shown in this image?\nassistant\ncat"
         ```"""
-        use_rmpad = self.config.use_rmpad
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -1136,6 +1136,10 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
                 "You cannot specify both `pixel_values`/`pixel_values_videos` and `inputs_embeds` at the same time, "
                 "and must specify either one"
             )
+        if not self.use_vision_tower:
+            assert (
+                pixel_values is None and pixel_values_videos is None
+            ), "Vision tower is not used, can not process images"
 
         if inputs_embeds is None:
             inputs_embeds = self.get_input_embeddings()(input_ids)
@@ -1293,70 +1297,48 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             )
 
         flops = self.calc_gpt_flops(attention_mask)
-        if self.use_custom_qwen:
-            outputs = self.language_model(
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_values=past_key_values,
-                inputs_embeds=inputs_embeds,
-                use_cache=use_cache,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-                use_rmpad=use_rmpad,
-                labels=labels,
-            )
-        else:
-            outputs = self.language_model(
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_values=past_key_values,
-                inputs_embeds=inputs_embeds,
-                use_cache=use_cache,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-                cache_position=cache_position,
-                num_logits_to_keep=num_logits_to_keep,
-            )
+        outputs = self.language_model(
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            cache_position=cache_position,
+            num_logits_to_keep=num_logits_to_keep,
+        )
 
-        if self.use_custom_qwen:
-            loss = outputs.loss
-            logits = outputs.logits
-        else:
-            logits = outputs[0]
-            loss = None
-            if labels is not None:
-                # Shift so that tokens < n predict n
-                if attention_mask is not None:
-                    # we use the input attention mask to shift the logits and labels, because it is 2D.
-                    # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
-                    shift_attention_mask = attention_mask[
-                        :, -(logits.shape[1] - 1) :
-                    ].to(logits.device)
-                    shift_logits = logits[..., :-1, :][
-                        shift_attention_mask.to(logits.device) != 0
-                    ].contiguous()
-                    shift_labels = labels[..., 1:][
-                        shift_attention_mask.to(labels.device) != 0
-                    ].contiguous()
-                else:
-                    shift_logits = logits[..., :-1, :].contiguous()
-                    shift_labels = labels[..., 1:].contiguous()
-                # Flatten the tokens
-                loss_fct = nn.CrossEntropyLoss()
-                loss = loss_fct(
-                    shift_logits.view(-1, shift_logits.size(-1)),
-                    shift_labels.view(-1).to(shift_logits.device),
+        logits = outputs[0]
+        loss = None
+        if labels is not None:
+            # Shift so that tokens < n predict n
+            if attention_mask is not None:
+                # we use the input attention mask to shift the logits and labels, because it is 2D.
+                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
+                shift_attention_mask = attention_mask[:, -(logits.shape[1] - 1) :].to(
+                    logits.device
                 )
+                shift_logits = logits[..., :-1, :][
+                    shift_attention_mask.to(logits.device) != 0
+                ].contiguous()
+                shift_labels = labels[..., 1:][
+                    shift_attention_mask.to(labels.device) != 0
+                ].contiguous()
+            else:
+                shift_logits = logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(
+                shift_logits.view(-1, shift_logits.size(-1)),
+                shift_labels.view(-1).to(shift_logits.device),
+            )
 
         if not return_dict:
-            if not use_rmpad or not self.config.text_config.model_type == "qwen2":
-                output = (logits,) + outputs[1:]
-                return (loss,) + output if loss is not None else output
-            else:
-                # If use rmpad, logits and loss already in outputs
-                return output
+            output = (logits,) + outputs[1:]
+            return (loss,) + output if loss is not None else output
 
         return LlavaOnevisionCausalLMOutputWithPast(
             loss=loss,
