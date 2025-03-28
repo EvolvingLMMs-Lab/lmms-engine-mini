@@ -1,18 +1,35 @@
+# Most of the code copied from https://github.com/linkedin/Liger-Kernel/blob/main/src/liger_kernel/transformers/monkey_patch.py
+# Modified to work on patch our models
+
 import inspect
 from functools import partial, wraps
 from typing import Callable
 
+from packaging import version
+
 try:
     from liger_kernel.transformers.cross_entropy import LigerCrossEntropyLoss
+    from liger_kernel.transformers.functional import liger_cross_entropy
+    from liger_kernel.transformers.geglu import LigerGEGLUMLP
+    from liger_kernel.transformers.layer_norm import LigerLayerNorm
+    from liger_kernel.transformers.model.qwen2 import (
+        lce_forward_deprecated as qwen2_lce_forward_deprecated,
+    )
     from liger_kernel.transformers.qwen2vl_mrope import liger_multimodal_rotary_pos_emb
     from liger_kernel.transformers.rms_norm import LigerRMSNorm
+    from liger_kernel.transformers.rope import liger_rotary_pos_emb
     from liger_kernel.transformers.swiglu import LigerSwiGLUMLP
 except:
     print(
         "liger kernel not installed, please install it with `pip install liger-kernel`"
     )
 
+import transformers
 from transformers import PreTrainedModel
+
+transformer_version = version.parse(transformers.__version__)
+SUPPORTED_TRANSFORMER_VERSION = "4.46.1"
+TRANSFORMER_DEPRECATION_WARNING = "Support for transformers versions < 4.46.1 will soon be discontinued due to issues with incorrect gradient accumulation. \n Please consider upgrading to avoid potential issues. See details: https://github.com/huggingface/transformers/pull/34191"
 
 from ...utils.logging_utils import Logging
 
@@ -33,6 +50,26 @@ def _patch_rms_norm_module(
     module.in_place = in_place
     _bind_method_to_module(module, "forward", LigerRMSNorm.forward)
     _bind_method_to_module(module, "extra_repr", LigerRMSNorm.extra_repr)
+
+
+def _patch_layer_norm_module(module, eps=1e-6):
+    module.variance_epsilon = (
+        getattr(module, "variance_epsilon", None) or getattr(module, "eps", None) or eps
+    )
+    module.hidden_size = module.normalized_shape
+    _bind_method_to_module(module, "forward", LigerLayerNorm.forward)
+    _bind_method_to_module(module, "extra_repr", LigerLayerNorm.extra_repr)
+    module.__class__.__name__ = LigerLayerNorm.__name__
+
+
+def _patch_swiglu_module(module, liger_module):
+    _bind_method_to_module(module, "forward", liger_module.forward)
+    module.__class__.__name__ = liger_module.__name__
+
+
+def _patch_geglu_module(module):
+    _bind_method_to_module(module, "forward", LigerGEGLUMLP.forward)
+    module.__class__.__name__ = LigerGEGLUMLP.__name__
 
 
 def apply_liger_kernel_to_kino_qwen2_5_vl(
@@ -134,8 +171,105 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
                 _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
 
 
+def apply_liger_kernel_to_kino_qwen2(
+    rope: bool = True,
+    cross_entropy: bool = False,
+    fused_linear_cross_entropy: bool = True,
+    rms_norm: bool = True,
+    swiglu: bool = True,
+    model: PreTrainedModel = None,
+    use_rmpad: bool = False,
+) -> None:
+    """
+    Apply Liger kernels to replace original implementation in HuggingFace Qwen2 models
+
+    Args:
+        rope (bool): Whether to apply Liger's rotary position embedding. Default is True.
+        cross_entropy (bool): Whether to apply Liger's cross entropy loss. Default is False.
+        fused_linear_cross_entropy (bool):
+            Whether to apply Liger's fused linear cross entropy loss. Default is True.
+            `cross_entropy` and `fused_linear_cross_entropy` cannot both be True.
+            If `fused_linear_cross_entropy` is True, the logits will not be materialized but more memory efficient.
+        rms_norm (bool): Whether to apply Liger's RMSNorm. Default is True.
+        swiglu (bool): Whether to apply Liger's SwiGLU MLP. Default is True.
+        model (PreTrainedModel): The model instance to apply Liger kernels to, if the model has already been
+        loaded. Default is None.
+    """
+    assert not (
+        cross_entropy and fused_linear_cross_entropy
+    ), "cross_entropy and fused_linear_cross_entropy cannot both be True."
+
+    from transformers.models.qwen2 import modeling_qwen2
+    from transformers.models.qwen2.modeling_qwen2 import Qwen2Model
+
+    if rope:
+        modeling_qwen2.apply_rotary_pos_emb = liger_rotary_pos_emb
+    if rms_norm:
+        modeling_qwen2.Qwen2RMSNorm = LigerRMSNorm
+
+    if cross_entropy:
+        if transformer_version >= version.parse(SUPPORTED_TRANSFORMER_VERSION):
+            from transformers.loss.loss_utils import nn
+
+            nn.functional.cross_entropy = liger_cross_entropy
+        else:
+            Logging.warning(TRANSFORMER_DEPRECATION_WARNING)
+            modeling_qwen2.CrossEntropyLoss = LigerCrossEntropyLoss
+
+    if fused_linear_cross_entropy:
+        from .qwen2_liger import qwen2_lce_forward
+
+        if use_rmpad:
+
+            def wrap_forward(func):
+                @wraps(func)
+                def wrapper(*args, **kwargs):
+                    return func(use_rmpad=use_rmpad, *args, **kwargs)
+
+                return wrapper
+
+            qwen2_lce_forward = wrap_forward(qwen2_lce_forward)
+        modeling_qwen2.Qwen2ForCausalLM.forward = qwen2_lce_forward
+
+    if swiglu:
+        modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP
+
+    if use_rmpad:
+        from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward
+        from .rmpad.qwen2_ops import (
+            decoder_layer_forward as qwen2_ops_decoder_layer_forward,
+        )
+        from .rmpad.qwen2_ops import model_forward as qwen2_ops_model_forward
+
+        modeling_qwen2.Qwen2Model.forward = qwen2_ops_model_forward
+        modeling_qwen2.Qwen2DecoderLayer.forward = qwen2_ops_decoder_layer_forward
+        modeling_qwen2.Qwen2Attention.forward = qwen2_ops_attn_forward
+
+    if model is not None:
+        # The model instance already exists, so we need to additionally patch the
+        # instance variables that reference already-instantiated modules
+
+        # get the base model from the model instance
+        base_model: Qwen2Model = getattr(
+            model.language_model,
+            model.language_model.base_model_prefix,
+            model.language_model,
+        )
+
+        if rms_norm:
+            _patch_rms_norm_module(base_model.norm)
+
+        for decoder_layer in base_model.layers:
+            if swiglu:
+                _patch_swiglu_module(decoder_layer.mlp, LigerSwiGLUMLP)
+            if rms_norm:
+                _patch_rms_norm_module(decoder_layer.input_layernorm)
+                _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
+
+
 CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN = {
     "kino_qwen2_5_vl": apply_liger_kernel_to_kino_qwen2_5_vl,
+    "kino": apply_liger_kernel_to_kino_qwen2,
 }
 
 
