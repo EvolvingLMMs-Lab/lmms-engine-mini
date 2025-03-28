@@ -81,7 +81,6 @@ class KinoConfig(PretrainedConfig):
     model_type = "kino"
     sub_configs = {
         "text_config": AutoConfig,
-        "vision_config": AutoConfig,
         "audio_config": AutoConfig,
     }
 
@@ -178,16 +177,6 @@ class KinoConfig(PretrainedConfig):
                 vision_config = CONFIG_MAPPING[vision_config["model_type"]](
                     **vision_config
                 )
-        elif vision_config is None:
-            vision_config = CONFIG_MAPPING["siglip_vision_model"](
-                hidden_size=1152,
-                intermediate_size=4304,
-                patch_size=14,
-                image_size=384,
-                num_hidden_layers=26,
-                num_attention_heads=16,
-                vision_use_head=False,
-            )
 
         self.vision_config = vision_config
         self.use_rmpad = use_rmpad

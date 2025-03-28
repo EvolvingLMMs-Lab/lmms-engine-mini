@@ -1,11 +1,14 @@
 import json
 import math
-from typing import Dict, List, Tuple
+from multiprocessing import Pool, cpu_count
+from typing import Dict, List, Literal, Tuple
 
 import jsonlines
 import yaml
+from tqdm import tqdm
 
 from .logging_utils import Logging
+from .train_utils import TrainUtilities
 
 FRAME_FACTOR = 2
 FPS = 2.0
@@ -30,6 +33,22 @@ class DataUtilities:
         return data_list
 
     @staticmethod
+    def maybe_load_json_or_jsonlines(
+        path: str, data_type: Literal["json", "jsonl"]
+    ) -> List[Dict[str, List]]:
+        if data_type == "json":
+            return DataUtilities.load_json(path)
+        elif data_type == "jsonl":
+            return DataUtilities.load_jsonlines(path)
+        else:
+            raise NotImplementedError
+
+    @staticmethod
+    def wrap_func(args):
+        path, data_type = args
+        return DataUtilities.maybe_load_json_or_jsonlines(path, data_type)
+
+    @staticmethod
     def load_yaml(path: str) -> Tuple[List[Dict[str, List]], List[str]]:
         data_list = []
         data_folder_list = []
@@ -39,20 +58,20 @@ class DataUtilities:
             data_paths = [dataset.get("json_path") for dataset in datasets]
             data_folders = [dataset.get("data_folder") for dataset in datasets]
             data_types = [dataset.get("data_type") for dataset in datasets]
-            for data_path, data_folder, data_type in zip(
-                data_paths, data_folders, data_types
+            with Pool(cpu_count()) as p:
+                nested_data_list = tqdm(
+                    list(p.imap(DataUtilities.wrap_func, zip(data_paths, data_types))),
+                    total=len(data_paths),
+                    desc="Loading data ...",
+                    disable=not TrainUtilities.is_rank_zero(),
+                )
+
+            for data, data_folder, data_path in zip(
+                nested_data_list, data_folders, data_paths
             ):
-                Logging.info(f"Loading data from {data_path}")
-                if data_type == "json":
-                    data = DataUtilities.load_json(data_path)
-                    data_list.extend(data)
-                    data_folder_list.extend([data_folder] * len(data))
-                elif data_type == "jsonl":
-                    data = DataUtilities.load_jsonlines(data_path)
-                    data_list.extend(data)
-                    data_folder_list.extend([data_folder] * len(data))
-                else:
-                    raise NotImplementedError
+                Logging.info(f"Data : {data_path}")
+                data_list.extend(data)
+                data_folder_list.extend([data_folder] * len(data))
                 Logging.info(f"Dataset size: {len(data)}")
         return data_list, data_folder_list
 

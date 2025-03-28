@@ -10,6 +10,12 @@ from .logging_utils import Logging
 
 class TrainUtilities:
     @staticmethod
+    def is_rank_zero():
+        if torch.distributed.is_initialized():
+            return torch.distributed.get_rank() == 0
+        return True
+
+    @staticmethod
     def prepare_model():
         pass
 
