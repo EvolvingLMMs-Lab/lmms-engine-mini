@@ -9,7 +9,8 @@ build-backend = "setuptools.build_meta"
 name = "lmms_engine"
 version = "0.1.0"
 authors = [
-    { name = "Your Name", email = "youremail@123.com" },
+    { name = "Kaichen Zhang", email = "kaichenzhang358@outlook.com" },
+    { name = "Fanyi Pu", email = "FPU001@e.ntu.edu.sg" },
 ]
 description = "A train engine"
 readme = "README.md"
@@ -67,5 +68,5 @@ lmms_launch="lmms_engine.launch.cli:main"
 
 
 [project.urls]
-Homepage = "https://xxx.github.io"
-Repository = "https://github.com/xxx/yyy"
+Homepage = "https://lmms-lab.framer.ai/"
+Repository = "https://github.com/EvolvingLMMs-Lab/lmms_engine"
