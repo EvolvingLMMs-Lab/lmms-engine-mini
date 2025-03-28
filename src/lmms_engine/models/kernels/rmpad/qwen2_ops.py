@@ -129,6 +129,7 @@ def model_forward(
         inputs_embeds = self.embed_tokens(input_ids)
 
     indices, cu_seq_lens = None, None
+    position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
     if position_ids.shape[0] != inputs_embeds.shape[0]:
         position_ids, _, _, _ = _unpad_input(
             position_ids.view(1, position_ids.shape[-1], 1).repeat(
@@ -143,40 +144,23 @@ def model_forward(
     )
     inputs_embeds, position_ids = inputs_embeds.squeeze(-1), position_ids.squeeze(-1)
 
-    if (
-        attention_mask is not None
-        and self._attn_implementation == "flash_attention_2"
-        and use_cache
-    ):
-        is_padding_right = attention_mask[:, -1].sum().item() != batch_size
-        if is_padding_right:
-            raise ValueError(
-                "You are attempting to perform batched generation with padding_side='right'"
-                " this may lead to unexpected behaviour for Flash Attention version of Qwen2. Make sure to "
-                " call `tokenizer.padding_side  = 'left'` before tokenizing the input. "
-            )
-    if self._attn_implementation == "flash_attention_2":
-        # 2d mask is passed through the layers
-        # attention_mask = attention_mask if (attention_mask is not None and 0 in attention_mask) else None
-        attention_mask = attention_mask if (attention_mask is not None) else None
-    elif self._attn_implementation == "sdpa" and not output_attentions:
-        # output_attentions=True can not be supported when using SDPA, and we fall back on
-        # the manual implementation that requires a 4D causal mask in all cases.
-        attention_mask = _prepare_4d_causal_attention_mask_for_sdpa(
-            attention_mask,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
-        )
-    else:
-        # 4d mask is passed through the layers
-        attention_mask = _prepare_4d_causal_attention_mask(
-            attention_mask,
-            (batch_size, seq_length),
-            inputs_embeds,
-            past_key_values_length,
-            sliding_window=self.config.sliding_window,
-        )
+    past_seen_tokens = (
+        past_key_values.get_seq_length() if past_key_values is not None else 0
+    )
+    cache_position = torch.arange(
+        past_seen_tokens,
+        past_seen_tokens + inputs_embeds.shape[1],
+        device=inputs_embeds.device,
+    )
+
+    causal_mask = self._update_causal_mask(
+        attention_mask,
+        inputs_embeds,
+        cache_position,
+        past_key_values,
+        output_attentions,
+    )
+    attention_mask = causal_mask
 
     hidden_states = inputs_embeds
 
@@ -200,6 +184,7 @@ def model_forward(
                 use_cache,
                 cu_seq_lens,
                 indices,
+                position_embeddings,
                 use_reentrant=False,
             )
         else:
@@ -212,6 +197,7 @@ def model_forward(
                 indices=indices,
                 cu_seq_lens=cu_seq_lens,
                 use_cache=use_cache,
+                position_embeddings=position_embeddings,
             )
 
         hidden_states = layer_outputs[0]
@@ -263,6 +249,7 @@ def decoder_layer_forward(
     use_cache: Optional[bool] = False,
     cu_seq_lens: Optional[torch.IntTensor] = None,
     indices: Optional[torch.IntTensor] = None,
+    position_embeddings: Tuple[torch.Tensor, torch.Tensor] = None,
     **kwargs,
 ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
     residual = hidden_states
@@ -279,6 +266,7 @@ def decoder_layer_forward(
         use_cache=use_cache,
         cu_seq_lens=cu_seq_lens,
         indices=indices,
+        position_embeddings=position_embeddings,
     )
     hidden_states = residual + hidden_states
 
@@ -310,6 +298,7 @@ def attn_forward(
     use_cache: bool = False,
     cu_seq_lens: Optional[torch.IntTensor] = None,
     indices: Optional[torch.IntTensor] = None,
+    position_embeddings: Tuple[torch.Tensor, torch.Tensor] = None,
     **kwargs,
 ):
     if "padding_mask" in kwargs:
@@ -323,14 +312,16 @@ def attn_forward(
     bsz = hidden_states.shape[0]
     q_len = torch.max(position_ids).item() + 1
     kv_seq_len = q_len
-    query_states = self.q_proj(hidden_states).view(-1, self.num_heads, self.head_dim)
+    query_states = self.q_proj(hidden_states).view(
+        -1, self.config.num_attention_heads, self.head_dim
+    )
     key_states = self.k_proj(hidden_states).view(
-        -1, self.num_key_value_heads, self.head_dim
+        -1, self.config.num_key_value_heads, self.head_dim
     )
     value_states = self.v_proj(hidden_states).view(
-        -1, self.num_key_value_heads, self.head_dim
+        -1, self.config.num_key_value_heads, self.head_dim
     )
-    cos, sin = self.rotary_emb(value_states, seq_len=q_len)
+    cos, sin = position_embeddings
 
     if apply_rotary_emb_func is not None:
         cos = cos.squeeze().index_select(
@@ -431,7 +422,7 @@ def attn_forward(
         value_states = value_states.to(target_dtype)
 
     max_seqlen = (
-        torch.diff(cu_seq_lens).max().item() if cu_seq_lens is not None else None,
+        torch.diff(cu_seq_lens).max().item() if cu_seq_lens is not None else None
     )
     window_size = (-1, -1)
 
@@ -449,7 +440,7 @@ def attn_forward(
         dropout_p=0.0,
     )
 
-    attn_output = attn_output.reshape(-1, self.hidden_size).contiguous()
+    attn_output = attn_output.reshape(-1, self.config.hidden_size).contiguous()
 
     attn_output = self.o_proj(attn_output)
 
