@@ -1308,11 +1308,12 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
             return_dict=return_dict,
             cache_position=cache_position,
             logits_to_keep=logits_to_keep,
+            labels=labels,
         )
 
         logits = outputs[0]
-        loss = None
-        if labels is not None:
+        loss = outputs.get("loss", None)
+        if labels is not None and loss is None:
             # Shift so that tokens < n predict n
             if attention_mask is not None:
                 # we use the input attention mask to shift the logits and labels, because it is 2D.
