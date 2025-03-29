@@ -23,8 +23,9 @@ logger = logging.get_logger(__name__)
 
 
 if is_flash_attn_2_available():
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+
     try:
-        from flash_attn import flash_attn_func, flash_attn_varlen_func
         from flash_attn.bert_padding import (  # noqa
             index_first_axis,
             pad_input,
@@ -347,19 +348,6 @@ def attn_forward(
     else:
         query_states, key_states = apply_rotary_pos_emb_unpad(
             query_states, key_states, cos, sin, position_ids
-        )
-
-    use_sliding_windows = (
-        _flash_supports_window_size
-        and getattr(self.config, "sliding_window", None) is not None
-        and kv_seq_len > self.config.sliding_window
-        and self.config.use_sliding_window
-    )
-
-    if not _flash_supports_window_size:
-        logger.warning_once(
-            "The current flash attention version does not support sliding window attention, for a more memory efficient implementation"
-            " make sure to upgrade flash-attn library."
         )
 
     if past_key_value is not None:
