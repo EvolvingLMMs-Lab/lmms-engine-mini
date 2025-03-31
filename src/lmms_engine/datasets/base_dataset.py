@@ -7,27 +7,22 @@ import librosa
 import numpy as np
 import torch
 from datasets import Sequence, load_dataset
-from decord import VideoReader, cpu
 from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
-from torchvision import io, transforms
-from torchvision.transforms import InterpolationMode
 
 from ..utils import Logging
 from ..utils.data_utils import DataUtilities
-from ..utils.train_utils import TrainUtilities
-from .collator import VisionCollator
 from .config import DatasetConfig
+from .datasetmixin import LMMsDatasetMixin
 from .processor import ProcessorConfig, ProcessorFactory
 
 LARGE_ENOUGH_NUMBER = 1000
 PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
 
 
-class BaseDataset(Dataset):
+class BaseDataset(Dataset, LMMsDatasetMixin):
     def __init__(self, config: DatasetConfig) -> None:
-        super().__init__()
-        self.config = config
+        super().__init__(config)
         self.processor_config = config.processor_config
         if isinstance(self.processor_config, dict):
             self.processor_config = ProcessorConfig(**self.processor_config)
@@ -71,15 +66,6 @@ class BaseDataset(Dataset):
             Logging.info(
                 f"Before packing : {len(self.data_list)}, After packing : {len(self.packing_index)}"
             )
-
-    def _build_processor(self):
-        processor = ProcessorFactory.create_processor(self.processor_config)
-        return processor
-
-    def build(self):
-        self._build_from_config()
-        self.processor = self._build_processor()
-        self.processor.build()
 
     def _estimate_data_tokens(self, data_list):
         lengths = []
@@ -259,84 +245,6 @@ class BaseDataset(Dataset):
         else:
             raise NotImplementedError
         return data_dict_list
-
-    def load_image(self, image_path: str, data_folder=None) -> Image.Image:
-        if data_folder is not None:
-            image_path = os.path.join(data_folder, image_path)
-
-        image = Image.open(image_path)
-        return image
-
-    def load_audio(self, audio_path: str, sr: int, data_folder=None) -> np.ndarray:
-        if data_folder is not None:
-            audio_path = os.path.join(data_folder, audio_path)
-        audio = librosa.load(audio_path, sr=sr)[0]
-        return audio
-
-    def load_videos(
-        self, video_path: str, data_folder=None, fps: int = 1
-    ) -> Tuple[np.ndarray, float]:
-        if data_folder is not None:
-            video_path = os.path.join(data_folder, video_path)
-
-        if self.config.video_backend == "decord":
-            return self.load_video_decord(video_path, fps)
-        elif self.config.video_backend == "torchvision":
-            return self.load_video_torchvision(video_path, fps)
-        else:
-            raise ValueError(f"Video backend {self.config.video_backend} not supported")
-
-    def load_video_decord(
-        self,
-        video_path: str,
-        fps: int,
-    ) -> Tuple[np.ndarray, float]:
-        if type(video_path) == str:
-            vr = VideoReader(video_path, ctx=cpu(0))
-        else:
-            vr = VideoReader(video_path[0], ctx=cpu(0))
-
-        total_frames, video_fps = len(vr), vr.get_avg_fps()
-        if self.config.video_sampling_strategy == "fps":
-            nframes = DataUtilities.smart_nframes(
-                total_frames, video_fps=video_fps, fps=fps
-            )
-        elif self.config.video_sampling_strategy == "frame_num":
-            nframes = self.config.frame_num
-        else:
-            raise ValueError(
-                f"Invalid video sampling strategy: {self.config.video_sampling_strategy}"
-            )
-        uniform_sampled_frames = np.linspace(0, total_frames - 1, nframes, dtype=int)
-        frame_idx = uniform_sampled_frames.tolist()
-        spare_frames = vr.get_batch(frame_idx).asnumpy()
-        spare_frames = torch.tensor(spare_frames).permute(
-            0, 3, 1, 2
-        )  # Convert to TCHW format
-        sample_fps = nframes / max(total_frames, 1e-6) * video_fps
-        return spare_frames, sample_fps  # (frames, height, width, channels)
-
-    def load_video_torchvision(
-        self,
-        video_path: str,
-        fps: int,
-    ) -> Tuple[np.ndarray, float]:
-        # Right now by default load the whole video
-        video, audio, info = io.read_video(
-            video_path,
-            start_pts=0.0,
-            end_pts=None,
-            pts_unit="sec",
-            output_format="TCHW",
-        )
-        total_frames, video_fps = video.size(0), info["video_fps"]
-        nframes = DataUtilities.smart_nframes(
-            total_frames=total_frames, video_fps=video_fps, fps=fps
-        )
-        idx = torch.linspace(0, total_frames - 1, nframes).round().long()
-        sample_fps = nframes / max(total_frames, 1e-6) * video_fps
-        video = video[idx]
-        return video, sample_fps
 
     @abstractmethod
     def load_from_json(self, data, data_folder=None):
