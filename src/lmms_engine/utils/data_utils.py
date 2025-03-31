@@ -1,14 +1,22 @@
 import json
 import math
+from io import BytesIO
 from multiprocessing import Pool, cpu_count
 from typing import Dict, List, Literal, Tuple
 
 import jsonlines
+import numpy as np
 import yaml
+from librosa import resample
 from tqdm import tqdm
 
 from .logging_utils import Logging
 from .train_utils import TrainUtilities
+
+try:
+    from google.cloud.storage import Client
+except:
+    Logging.info("Google Cloud SDK not installed. Skipping import.")
 
 FRAME_FACTOR = 2
 FPS = 2.0
@@ -126,3 +134,24 @@ class DataUtilities:
     def floor_by_factor(number: int, factor: int) -> int:
         """Returns the largest integer less than or equal to 'number' that is divisible by 'factor'."""
         return math.floor(number / factor) * factor
+
+    @staticmethod
+    def download_blob_to_stream(
+        storage_client: Client,
+        bucket_name: str,
+        source_blob_name: str,
+        file_obj: BytesIO,
+    ) -> BytesIO:
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(source_blob_name)
+        blob.download_to_file(file_obj)
+        return file_obj
+
+    @staticmethod
+    def resample_audio(
+        audio_array: np.ndarray, original_sr: int, target_sr: int
+    ) -> np.ndarray:
+        audio_resample_array = resample(
+            audio_array, orig_sr=original_sr, target_sr=target_sr
+        )
+        return audio_resample_array

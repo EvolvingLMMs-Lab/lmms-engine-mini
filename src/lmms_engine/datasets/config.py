@@ -10,7 +10,8 @@ class DatasetConfig:
     dataset_format: Literal["json", "jsonl", "yaml", "hf_dataset"]
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
-    chat_template: Literal["qwen"] = "qwen"
+    use_gcs: Optional[bool] = False
+    bucket_name: Optional[str] = None
     packing: Optional[bool] = False
     packing_strategy: Optional[str] = None
     packing_length: Optional[int] = 32000
