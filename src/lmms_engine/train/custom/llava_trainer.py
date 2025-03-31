@@ -60,7 +60,6 @@ from transformers.utils import (
     is_datasets_available,
     is_peft_available,
     is_sagemaker_mp_enabled,
-    is_torch_tpu_available,
     is_torch_xla_available,
 )
 
@@ -68,7 +67,7 @@ if is_apex_available():
     from apex import amp
 if is_datasets_available():
     import datasets
-if is_torch_tpu_available(check_device=False):
+if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
     import torch_xla.debug.metrics as met
 if is_sagemaker_mp_enabled():
