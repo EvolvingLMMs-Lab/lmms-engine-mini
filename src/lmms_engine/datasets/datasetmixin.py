@@ -102,7 +102,7 @@ class LMMsDatasetMixin:
     ) -> Tuple[np.ndarray, float]:
         if isinstance(video_path, str) or isinstance(video_path, BytesIO):
             vr = VideoReader(video_path, ctx=cpu(0))
-        elif isinstance(video_path, List):
+        elif isinstance(video_path, list):
             vr = VideoReader(video_path[0], ctx=cpu(0))
 
         total_frames, video_fps = len(vr), vr.get_avg_fps()
