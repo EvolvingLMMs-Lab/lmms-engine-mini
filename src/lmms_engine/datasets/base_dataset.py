@@ -1,4 +1,5 @@
 import os
+import random
 from abc import abstractmethod
 from copy import deepcopy
 from typing import Dict, List, Tuple
@@ -42,6 +43,9 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             )
         else:
             raise NotImplementedError
+
+        if self.config.shuffle:
+            random.shuffle(self.data_list)
 
         self.data_lengths = (
             self._estimate_data_tokens(self.data_list)

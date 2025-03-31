@@ -10,6 +10,7 @@ class DatasetConfig:
     dataset_format: Literal["json", "jsonl", "yaml", "hf_dataset"]
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
+    shuffle: bool = True
     use_gcs: Optional[bool] = False
     bucket_name: Optional[str] = None
     packing: Optional[bool] = False

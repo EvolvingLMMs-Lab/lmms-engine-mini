@@ -25,25 +25,6 @@ logger = logging.get_logger(__name__)
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
 
-    try:
-        from flash_attn.bert_padding import (  # noqa
-            index_first_axis,
-            pad_input,
-            unpad_input,
-        )
-        from flash_attn.ops.rms_norm import rms_norm
-
-        faster_llama_rmsnorm = rms_norm
-
-        _flash_supports_window_size = "window_size" in list(
-            inspect.signature(flash_attn_func).parameters
-        )
-    except:
-        Logging.info(
-            "Found flash_attn but no layer norm install. Please install with csrc/layer_norm in fa2"
-        )
-
-
 try:
     from flash_attn.layers.rotary import apply_rotary_emb_func
 except:
