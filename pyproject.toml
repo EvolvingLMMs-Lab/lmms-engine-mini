@@ -39,6 +39,7 @@ dependencies = [
     "decord",
     "torch==2.5.1",
     "torchvision",
+    "google-cloud-storage",
 ]
 
 [project.optional-dependencies]
