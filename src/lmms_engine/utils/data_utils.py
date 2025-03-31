@@ -15,7 +15,7 @@ from .train_utils import TrainUtilities
 
 try:
     from google.cloud.storage import Client
-except:
+except ImportError:
     Logging.info("Google Cloud SDK not installed. Skipping import.")
 
 FRAME_FACTOR = 2
