@@ -45,7 +45,11 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             raise NotImplementedError
 
         if self.config.shuffle:
-            random.shuffle(self.data_list)
+            data_index = [i for i in range(len(self.data_list))]
+            random.shuffle(data_index)
+            self.data_list = [self.data_list[i] for i in data_index]
+            if self.config.dataset_format == "yaml":
+                self.data_folder = [self.data_folder[i] for i in data_index]
 
         self.data_lengths = (
             self._estimate_data_tokens(self.data_list)
