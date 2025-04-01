@@ -149,7 +149,7 @@ class DataUtilities:
                     blob_client = storage_client.get_blob_client(
                         container=bucket_name, blob=source_blob_name
                     )
-                    blob_client.download_blob().readinto(file_obj)
+                    blob_client.download_blob(max_concurrency=16).readinto(file_obj)
                 break
             except Exception as e:
                 Logging.error(f"Attempt {i} Error downloading blob: {source_blob_name}")
