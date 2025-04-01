@@ -16,8 +16,16 @@ from .processor import ProcessorConfig, ProcessorFactory
 
 try:
     from google.cloud.storage import Client
-except:
+except ImportError:
     Logging.info("Google Cloud SDK not installed. Skipping import.")
+
+try:
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobPrefix, BlobServiceClient, ContainerClient
+
+    SAS_URL = os.environ.get("AZURE_STORAGE_SAS_URL", "YOUR_SAS_URL")
+except ImportError:
+    Logging.info("Azure SDK not installed. Skipping import.")
 
 LARGE_ENOUGH_NUMBER = 1000
 PngImagePlugin.MAX_TEXT_CHUNK = LARGE_ENOUGH_NUMBER * (1024**2)
@@ -27,8 +35,11 @@ class LMMsDatasetMixin:
     def __init__(self, config: DatasetConfig, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.config = config
-        if self.config.use_gcs:
+        if self.config.object_storage == "gcs":
             self.storage_client = Client()
+            self.bucket_name = self.config.bucket_name
+        elif self.config.object_storage == "azure":
+            self.storage_client = BlobServiceClient(account_url=SAS_URL)
             self.bucket_name = self.config.bucket_name
 
     def _build_from_config(self):
@@ -47,10 +58,14 @@ class LMMsDatasetMixin:
         if data_folder is not None:
             image_path = os.path.join(data_folder, image_path)
 
-        if self.config.use_gcs:
+        if self.config.object_storage != "none":
             file_obj = BytesIO()
             file_obj = DataUtilities.download_blob_to_stream(
-                self.storage_client, self.bucket_name, image_path, file_obj
+                self.storage_client,
+                self.bucket_name,
+                image_path,
+                file_obj,
+                self.config.object_storage,
             )
             file_obj.seek(0)
             image = Image.open(file_obj)
@@ -61,10 +76,14 @@ class LMMsDatasetMixin:
     def load_audio(self, audio_path: str, sr: int, data_folder=None) -> np.ndarray:
         if data_folder is not None:
             audio_path = os.path.join(data_folder, audio_path)
-        if self.config.use_gcs:
+        if self.config.object_storage != "none":
             file_obj = BytesIO()
             file_obj = DataUtilities.download_blob_to_stream(
-                self.storage_client, self.bucket_name, audio_path, file_obj
+                self.storage_client,
+                self.bucket_name,
+                audio_path,
+                file_obj,
+                self.config.object_storage,
             )
             file_obj.seek(0)
             audio, orig_sr = sf.read(file_obj)
@@ -79,10 +98,14 @@ class LMMsDatasetMixin:
         if data_folder is not None:
             video_path = os.path.join(data_folder, video_path)
 
-        if self.config.use_gcs:
+        if self.config.object_storage != "none":
             file_obj = BytesIO()
             file_obj = DataUtilities.download_blob_to_stream(
-                self.storage_client, self.bucket_name, video_path, file_obj
+                self.storage_client,
+                self.bucket_name,
+                video_path,
+                file_obj,
+                self.config.object_storage,
             )
             file_obj.seek(0)
             # Forcing to use decord at this time, torchvision actually also can, but I don't want to deal with it now
