@@ -39,7 +39,6 @@ dependencies = [
     "decord",
     "torch==2.5.1",
     "torchvision",
-    "google-cloud-storage",
 ]
 
 [project.optional-dependencies]
@@ -48,8 +47,15 @@ pref = [
     "math-verify",
 ]
 
+storage = [
+    "google-cloud-storage",
+    "azure-storage-blob",
+    "azure-identity",
+]
+
 all = [
     "lmms_engine[pref]",
+    "lmms_engine[storage]",
 ]
 
 [tool.setuptools.packages.find]
