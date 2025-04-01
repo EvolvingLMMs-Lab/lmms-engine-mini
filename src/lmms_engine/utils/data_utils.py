@@ -136,17 +136,26 @@ class DataUtilities:
         bucket_name: str,
         source_blob_name: str,
         file_obj: BytesIO,
-        storage_type: Literal["gcs", "azure"] = "gcs",
+        storage_type: Literal["gcs", "azure"] = "azure",
+        max_retries: int = 5,
     ) -> BytesIO:
-        if storage_type == "gcs":
-            bucket = storage_client.bucket(bucket_name)
-            blob = bucket.blob(source_blob_name)
-            blob.download_to_file(file_obj)
-        elif storage_type == "azure":
-            blob_client = storage_client.get_blob_client(
-                container=bucket_name, blob=source_blob_name
-            )
-            blob_client.download_blob().readinto(file_obj)
+        for i in range(max_retries):
+            try:
+                if storage_type == "gcs":
+                    bucket = storage_client.bucket(bucket_name)
+                    blob = bucket.blob(source_blob_name)
+                    blob.download_to_file(file_obj)
+                elif storage_type == "azure":
+                    blob_client = storage_client.get_blob_client(
+                        container=bucket_name, blob=source_blob_name
+                    )
+                    blob_client.download_blob().readinto(file_obj)
+                break
+            except Exception as e:
+                Logging.error(f"Attempt {i} Error downloading blob: {source_blob_name}")
+                Logging.error(f"Error: {e}")
+                Logging.error(f"Retrying ...")
+
         return file_obj
 
     @staticmethod
