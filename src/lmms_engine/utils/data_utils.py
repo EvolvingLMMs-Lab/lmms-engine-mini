@@ -13,11 +13,6 @@ from tqdm import tqdm
 from .logging_utils import Logging
 from .train_utils import TrainUtilities
 
-try:
-    from google.cloud.storage import Client
-except ImportError:
-    Logging.info("Google Cloud SDK not installed. Skipping import.")
-
 FRAME_FACTOR = 2
 FPS = 2.0
 FPS_MIN_FRAMES = 4
@@ -137,14 +132,21 @@ class DataUtilities:
 
     @staticmethod
     def download_blob_to_stream(
-        storage_client: Client,
+        storage_client,
         bucket_name: str,
         source_blob_name: str,
         file_obj: BytesIO,
+        storage_type: Literal["gcs", "azure"] = "gcs",
     ) -> BytesIO:
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(source_blob_name)
-        blob.download_to_file(file_obj)
+        if storage_type == "gcs":
+            bucket = storage_client.bucket(bucket_name)
+            blob = bucket.blob(source_blob_name)
+            blob.download_to_file(file_obj)
+        elif storage_type == "azure":
+            blob_client = storage_client.get_blob_client(
+                container=bucket_name, blob=source_blob_name
+            )
+            blob_client.download_blob().readinto(file_obj)
         return file_obj
 
     @staticmethod
