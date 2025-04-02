@@ -38,7 +38,7 @@ def prepare_causal_attn_mask(
 
 
 # Forward function for Qwen2 Audio Encoder
-def encoder_foward(
+def encoder_forward(
     self,
     input_features,
     attention_mask=None,

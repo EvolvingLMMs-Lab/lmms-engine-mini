@@ -285,7 +285,9 @@ def apply_liger_kernel_to_qwen2_audio(
     )
 
     if use_rmpad:
-        from .rmpad.qwen2_audio_ops import encoder_foward as qwen2_audio_encoder_forward
+        from .rmpad.qwen2_audio_ops import (
+            encoder_forward as qwen2_audio_encoder_forward,
+        )
         from .rmpad.qwen2_audio_ops import (
             encoder_layer_forward as qwen2_audio_encoder_layer_forward,
         )
