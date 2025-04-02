@@ -1,8 +1,10 @@
 import json
 import os
+import random
 import shutil
 from abc import ABC, abstractmethod
 
+import numpy as np
 import torch
 from peft import LoraConfig, get_peft_model
 
@@ -184,3 +186,15 @@ class BaseTrainer(ABC):
             # Copy the yaml to output dir
             yaml_path = self.config.dataset_config.dataset_path
             shutil.copy(yaml_path, f"{output_dir}/dataset.yaml")
+
+    def set_random_seed(self, random_seed: int = 42):
+        # Setting random seed for all
+        random.seed(random_seed)
+        torch.manual_seed(random_seed)
+        torch.cuda.manual_seed(random_seed)
+        torch.cuda.manual_seed_all(random_seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        np.random.seed(random_seed)
+        Logging.info(f"Set random seed to {random_seed}")
+        return random_seed

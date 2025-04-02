@@ -14,6 +14,7 @@ from .reward_func import REWARD_FUNC_REGISTRY
 
 class Hf_Trainer(BaseTrainer):
     def __init__(self, config: TrainerConfig) -> None:
+        self.set_random_seed()
         super().__init__(config)
 
     def build(self):

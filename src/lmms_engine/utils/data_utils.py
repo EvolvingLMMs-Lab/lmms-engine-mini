@@ -62,11 +62,9 @@ class DataUtilities:
             data_folders = [dataset.get("data_folder") for dataset in datasets]
             data_types = [dataset.get("data_type") for dataset in datasets]
             with Pool(cpu_count()) as p:
-                nested_data_list = tqdm(
-                    list(p.imap(DataUtilities.wrap_func, zip(data_paths, data_types))),
-                    total=len(data_paths),
-                    desc="Loading data ...",
-                    disable=not TrainUtilities.is_rank_zero(),
+                Logging.info("Loading data with multiprocess...")
+                nested_data_list = list(
+                    p.imap(DataUtilities.wrap_func, zip(data_paths, data_types))
                 )
 
             for data, data_folder, data_path in zip(

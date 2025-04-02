@@ -890,9 +890,10 @@ class LLaVATrainer(Trainer):
                 with self.accelerator.accumulate(model):
                     tr_loss_step, outputs = self.training_step(model, inputs)
 
-                gc_interval = 100
+                gc_interval = self.args.torch_empty_cache_steps
                 if (
-                    gc_interval > 0
+                    gc_interval is not None
+                    and gc_interval > 0
                     and step > 0
                     and step % (args.gradient_accumulation_steps * gc_interval) == 0
                 ):
