@@ -143,6 +143,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
             qwen2_ops_decoder_layer_forward
         )
         modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     # TODO : Add binding to existing models for rmpad
     if model is not None:
@@ -233,6 +234,7 @@ def apply_liger_kernel_to_kino_qwen2(
 
     if swiglu:
         modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     if use_rmpad:
         from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward
@@ -265,6 +267,35 @@ def apply_liger_kernel_to_kino_qwen2(
             if rms_norm:
                 _patch_rms_norm_module(decoder_layer.input_layernorm)
                 _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
+
+
+def apply_liger_kernel_to_qwen2_audio(
+    rope: bool = True,
+    cross_entropy: bool = False,
+    fused_linear_cross_entropy: bool = True,
+    rms_norm: bool = True,
+    swiglu: bool = True,
+    model: PreTrainedModel = None,
+    use_rmpad: bool = True,
+):
+    from transformers import Qwen2AudioEncoder
+    from transformers.models.qwen2_audio.modeling_qwen2_audio import (
+        Qwen2AudioEncoderLayer,
+        Qwen2AudioFlashAttention2,
+    )
+
+    if use_rmpad:
+        from .rmpad.qwen2_audio_ops import encoder_foward as qwen2_audio_encoder_forward
+        from .rmpad.qwen2_audio_ops import (
+            encoder_layer_forward as qwen2_audio_encoder_layer_forward,
+        )
+        from .rmpad.qwen2_audio_ops import (
+            flash_attn_forward as qwen2_audio_flash_attn_forward,
+        )
+
+        Qwen2AudioEncoder.forward = qwen2_audio_encoder_forward
+        Qwen2AudioEncoderLayer.forward = qwen2_audio_encoder_layer_forward
+        Qwen2AudioFlashAttention2.forward = qwen2_audio_flash_attn_forward
 
 
 CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN = {
