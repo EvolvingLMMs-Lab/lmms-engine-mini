@@ -203,6 +203,8 @@ def apply_liger_kernel_to_kino_qwen2(
     from transformers.models.qwen2 import modeling_qwen2
     from transformers.models.qwen2.modeling_qwen2 import Qwen2Model
 
+    from ..kino import modeling_kino
+
     if rope:
         modeling_qwen2.apply_rotary_pos_emb = liger_rotary_pos_emb
     if rms_norm:
@@ -219,6 +221,7 @@ def apply_liger_kernel_to_kino_qwen2(
 
     if fused_linear_cross_entropy:
         from .qwen2_liger import qwen2_lce_forward
+        from .rmpad.kino_ops import forward as kino_ops_forward
 
         if use_rmpad:
 
@@ -231,6 +234,7 @@ def apply_liger_kernel_to_kino_qwen2(
 
             qwen2_lce_forward = wrap_forward(qwen2_lce_forward)
         modeling_qwen2.Qwen2ForCausalLM.forward = qwen2_lce_forward
+        modeling_kino.KinoForConditionalGeneration.forward = kino_ops_forward
 
     if swiglu:
         modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP

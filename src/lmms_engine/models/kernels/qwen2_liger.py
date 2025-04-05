@@ -26,6 +26,8 @@ def qwen2_lce_forward(
     cache_position: Optional[torch.LongTensor] = None,
     num_logits_to_keep: int = 0,
     use_rmpad: bool = False,
+    cu_seq_lens: Optional[torch.IntTensor] = None,
+    indices: Optional[torch.IntTensor] = None,
     **loss_kwargs,
 ) -> Union[Tuple, CausalLMOutputWithPast]:
     r"""
@@ -85,6 +87,8 @@ def qwen2_lce_forward(
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
         cache_position=cache_position,
+        cu_seq_lens=cu_seq_lens,
+        indices=indices,
     )
     seq_lens = outputs.get("seq_lens", None)
     word_idx = outputs.get("word_idx", None)
