@@ -1053,16 +1053,16 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
         return flops
 
     def calc_gpt_flops(self, attention_mask, num_audio_tokens, num_visual_tokens):
-        bs, seq_len = attention_mask.shape
+        tokens_count = torch.sum(attention_mask != 0).item()
         lm_flops = TrainUtilities.get_decoder_flops(
             num_layers=self.config.text_config.num_hidden_layers,
             hidden_size=self.config.text_config.hidden_size,
             vocab_size=self.config.text_config.vocab_size,
-            seq_len=seq_len,
+            seq_len=tokens_count,
             ffn_hidden_size=self.config.text_config.intermediate_size,
             num_key_value_heads=self.config.text_config.num_key_value_heads,
             num_heads=self.config.text_config.num_attention_heads,
-            batch_size=bs,
+            batch_size=1,
         )
         audio_encoder_flops = TrainUtilities.get_attn_flops(
             num_layers=self.config.audio_config.encoder_layers,
