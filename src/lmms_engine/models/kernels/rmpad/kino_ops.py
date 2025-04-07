@@ -275,7 +275,11 @@ def forward(
             audio_mask, unpadded_audio_features
         )
 
-    flops = self.calc_gpt_flops(attention_mask)
+    n_image_tokens = (input_ids == self.config.image_token_index).sum().item()
+    n_video_tokens = (input_ids == self.config.video_token_index).sum().item()
+    n_visual_tokens = n_image_tokens + n_video_tokens
+    n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
+    flops = self.calc_gpt_flops(attention_mask, n_audio_tokens, n_visual_tokens)
     outputs = self.language_model(
         attention_mask=attention_mask,
         position_ids=position_ids,

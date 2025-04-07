@@ -34,6 +34,8 @@ from transformers.models.qwen2_vl.modeling_qwen2_vl import (
 )
 from transformers.utils import add_start_docstrings, logging
 
+from lmms_engine.utils import TrainUtilities
+
 from .configuration_kino import KinoConfig
 
 logger = logging.get_logger(__name__)
@@ -928,7 +930,11 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
                 audio_mask, unpadded_audio_features
             )
 
-        flops = self.calc_gpt_flops(attention_mask)
+        n_image_tokens = (input_ids == self.config.image_token_index).sum().item()
+        n_video_tokens = (input_ids == self.config.video_token_index).sum().item()
+        n_visual_tokens = n_image_tokens + n_video_tokens
+        n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
+        flops = self.calc_gpt_flops(attention_mask, n_audio_tokens, n_visual_tokens)
         outputs = self.language_model(
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -1046,16 +1052,38 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
         flops = 6 * total_params
         return flops
 
-    def calc_gpt_flops(self, attention_mask):
-        tokens_count = torch.sum(attention_mask != 0).item()
-        flops = self.flops_per_token() * tokens_count
-        token_count_list = torch.sum(attention_mask != 0, dim=1).tolist()
-        for seq_len in token_count_list:
-            flops += (
-                12
-                * seq_len
-                * seq_len
-                * self.config.text_config.num_hidden_layers
-                * self.config.text_config.hidden_size
+    def calc_gpt_flops(self, attention_mask, num_audio_tokens, num_visual_tokens):
+        bs, seq_len = attention_mask.shape
+        lm_flops = TrainUtilities.get_decoder_flops(
+            num_layers=self.config.text_config.num_hidden_layers,
+            hidden_size=self.config.text_config.hidden_size,
+            vocab_size=self.config.text_config.vocab_size,
+            seq_len=seq_len,
+            ffn_hidden_size=self.config.text_config.intermediate_size,
+            num_key_value_heads=self.config.text_config.num_key_value_heads,
+            num_heads=self.config.text_config.num_attention_heads,
+            batch_size=bs,
+        )
+        audio_encoder_flops = TrainUtilities.get_attn_flops(
+            num_layers=self.config.audio_config.encoder_layers,
+            hidden_size=self.config.audio_config.d_model,
+            num_heads=self.config.audio_config.encoder_attention_heads,
+            seq_len=num_audio_tokens,
+            num_key_value_heads=None,
+            ffn_hidden_size=self.config.audio_config.encoder_ffn_dim,
+        )
+        projector_flops = (
+            self.config.audio_config.d_model * self.config.text_config.hidden_size * 6
+        )
+        flops = lm_flops + audio_encoder_flops + projector_flops
+        if self.vision_tower is not None:
+            vision_encoder_flops = TrainUtilities.get_attn_flops(
+                num_layers=self.config.vision_config.depth,
+                hidden_size=self.config.vision_config.hidden_size,
+                num_heads=self.config.vision_config.num_heads,
+                seq_len=num_visual_tokens,
+                num_key_value_heads=None,
+                ffn_hidden_size=self.config.vision_config.intermediate_size,
             )
+            flops += vision_encoder_flops
         return flops
