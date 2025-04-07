@@ -143,7 +143,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
             qwen2_ops_decoder_layer_forward
         )
         modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
-    # apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     # TODO : Add binding to existing models for rmpad
     if model is not None:
@@ -234,7 +234,7 @@ def apply_liger_kernel_to_kino_qwen2(
 
     if swiglu:
         modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP
-    # apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     if use_rmpad:
         from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward

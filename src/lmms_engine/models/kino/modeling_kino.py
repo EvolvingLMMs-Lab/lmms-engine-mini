@@ -414,9 +414,6 @@ class KinoForConditionalGeneration(LlavaOnevisionPreTrainedModel, GenerationMixi
                     * embed_std
                 )
 
-        # TODO: Validate the rmpad of audio encoder before using it
-        if config.audio_config._attn_implementation == "flash_attention_2":
-            config.audio_config._attn_implementation = "sdpa"
         self.audio_tower = Qwen2AudioEncoder(config.audio_config)
         self.audio_modal_projector = LlavaOnevisionAudioMultiModalProjector(config)
         embed_std = 1 / math.sqrt(config.text_config.hidden_size)
