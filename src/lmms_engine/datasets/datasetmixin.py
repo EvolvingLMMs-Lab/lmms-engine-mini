@@ -21,8 +21,14 @@ except ImportError:
 
 try:
     from azure.identity import DefaultAzureCredential
-    from azure.storage.blob import BlobPrefix, BlobServiceClient, ContainerClient
+    from azure.storage.blob import (
+        BlobPrefix,
+        BlobServiceClient,
+        ContainerClient,
+        LinearRetry,
+    )
 
+    RETRY_POLICY = LinearRetry(backoff=10, retry_total=5, random_jitter_range=0)
     SAS_URL = os.environ.get("AZURE_STORAGE_SAS_URL", "YOUR_SAS_URL")
 except ImportError:
     Logging.info("Azure SDK not installed. Skipping import.")
@@ -39,7 +45,9 @@ class LMMsDatasetMixin:
             self.storage_client = Client()
             self.bucket_name = self.config.bucket_name
         elif self.config.object_storage == "azure":
-            self.storage_client = BlobServiceClient(account_url=SAS_URL)
+            self.storage_client = BlobServiceClient(
+                account_url=SAS_URL, retry_policy=RETRY_POLICY
+            )
             self.bucket_name = self.config.bucket_name
 
     def _build_from_config(self):
