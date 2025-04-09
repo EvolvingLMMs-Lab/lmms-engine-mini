@@ -43,7 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pref = [
-    "trl @ git+https://github.com/huggingface/trl.git",
+    "trl==0.16.1",
     "math-verify",
 ]
 
