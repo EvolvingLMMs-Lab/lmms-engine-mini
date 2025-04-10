@@ -143,7 +143,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
             qwen2_ops_decoder_layer_forward
         )
         modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
-    # apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     # TODO : Add binding to existing models for rmpad
     if model is not None:
@@ -203,6 +203,8 @@ def apply_liger_kernel_to_kino_qwen2(
     from transformers.models.qwen2 import modeling_qwen2
     from transformers.models.qwen2.modeling_qwen2 import Qwen2Model
 
+    from ..kino import modeling_kino
+
     if rope:
         modeling_qwen2.apply_rotary_pos_emb = liger_rotary_pos_emb
     if rms_norm:
@@ -219,6 +221,7 @@ def apply_liger_kernel_to_kino_qwen2(
 
     if fused_linear_cross_entropy:
         from .qwen2_liger import qwen2_lce_forward
+        from .rmpad.kino_ops import forward as kino_ops_forward
 
         if use_rmpad:
 
@@ -231,10 +234,11 @@ def apply_liger_kernel_to_kino_qwen2(
 
             qwen2_lce_forward = wrap_forward(qwen2_lce_forward)
         modeling_qwen2.Qwen2ForCausalLM.forward = qwen2_lce_forward
+        modeling_kino.KinoForConditionalGeneration.forward = kino_ops_forward
 
     if swiglu:
         modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP
-    # apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
+    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     if use_rmpad:
         from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward

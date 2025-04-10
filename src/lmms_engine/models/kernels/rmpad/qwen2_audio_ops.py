@@ -254,6 +254,8 @@ def flash_attn_forward(
     )
     window_size = (-1, -1)
 
+    # Align with flash attn forward in whisper
+    # No causal mask, no softmax scale
     attn_output = flash_attn_varlen_func(
         q=query_states,
         k=key_states,
@@ -262,10 +264,9 @@ def flash_attn_forward(
         cu_seqlens_k=cu_seq_lens,
         max_seqlen_q=max_seqlen,
         max_seqlen_k=max_seqlen,
-        causal=self.is_causal,
+        causal=False,
         window_size=window_size,
-        softmax_scale=self.head_dim**-0.5,
-        dropout_p=0.0,
+        dropout_p=self.dropout if self.training else 0.0,
     )
 
     attn_output = attn_output.reshape(-1, self.embed_dim).contiguous()

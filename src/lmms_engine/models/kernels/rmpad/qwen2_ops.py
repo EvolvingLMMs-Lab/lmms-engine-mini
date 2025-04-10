@@ -46,6 +46,8 @@ def model_forward(
     output_attentions: Optional[bool] = None,
     output_hidden_states: Optional[bool] = None,
     return_dict: Optional[bool] = None,
+    cu_seq_lens: Optional[torch.IntTensor] = None,
+    indices: Optional[torch.IntTensor] = None,
     **kwargs,
 ) -> Union[Tuple, BaseModelOutputWithPastAndRmpad]:
     output_attentions = (
@@ -73,7 +75,10 @@ def model_forward(
     elif input_ids is not None:
         batch_size, seq_length = input_ids.shape
     elif inputs_embeds is not None:
-        batch_size, seq_length, _ = inputs_embeds.shape
+        if inputs_embeds.dim() == 3:
+            batch_size, seq_length, _ = inputs_embeds.shape
+        elif inputs_embeds.dim() == 2:
+            batch_size, seq_length = inputs_embeds.shape
     else:
         raise ValueError(
             "You have to specify either decoder_input_ids or decoder_inputs_embeds"
@@ -110,7 +115,6 @@ def model_forward(
     if inputs_embeds is None:
         inputs_embeds = self.embed_tokens(input_ids)
 
-    indices, cu_seq_lens = None, None
     position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
     if position_ids.shape[0] != inputs_embeds.shape[0]:
         position_ids, _, _, _ = _unpad_input(
@@ -121,10 +125,16 @@ def model_forward(
         )
     else:
         position_ids, _, _, _ = _unpad_input(position_ids.unsqueeze(-1), attention_mask)
-    inputs_embeds, indices, cu_seq_lens, _ = _unpad_input(
-        inputs_embeds.unsqueeze(-1), attention_mask
-    )
-    inputs_embeds, position_ids = inputs_embeds.squeeze(-1), position_ids.squeeze(-1)
+
+    # If already handled in the outside to optimize scattered performance
+    # Then we do not unpad here
+    if cu_seq_lens is None:
+        inputs_embeds, indices, cu_seq_lens, _ = _unpad_input(
+            inputs_embeds.unsqueeze(-1), attention_mask
+        )
+        inputs_embeds, position_ids = inputs_embeds.squeeze(-1), position_ids.squeeze(
+            -1
+        )
 
     past_seen_tokens = (
         past_key_values.get_seq_length() if past_key_values is not None else 0
