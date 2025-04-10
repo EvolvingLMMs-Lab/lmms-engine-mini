@@ -11,12 +11,13 @@ python3 -m pip install -e .
 ```
 
 ### Use rmpad
-Rmpad is a techniques to accelerate the training process by removing the pad. With it enabled, it will boost the training performance quickly. Currently the implementation is being fused with liger-kernel and being patched to the model's forward during training. Thus, we might need to validate the operations. Current Rmpad ops are all written in flash-attn with the `var_len` function so we need to install flash-attn and liger-kernel to use it. 
+Rmpad is a techniques to accelerate the training process by removing the pad. With it enabled, it will boost the training performance quickly. Currently the implementation is being fused with liger-kernel and being patched to the model's forward during training. Thus, we might need to validate the operations. Current Rmpad ops are all written in flash-attn with the `var_len` function so we need to install flash-attn and liger-kernel to use it. If you currently use the fully unpadding techniques start from the input ids, the MFU can reach to about 35-40 under ideal settings. Normally, in most of the cases, a range between 25-35 would be normal
 
 #### Current Supported Ops
 - Qwen2 or 2.5 LM series 
 - Qwen2.5 VL
-- QwenAudioEncoder (Unvalidated, TODO)
+- QwenAudioEncoder
+- Kino (Unpad start from input ids)
 
 To use rmpad, you should install flash-attn also. You can do it by
 ```bash
@@ -39,7 +40,10 @@ To use it, you will need to set
 ```
 in the training config. Then the forward would be patched into the model.
 
-TODO: Make the patching bind to a existing model as well for better api usage
+#### Debugging Advise
+
+If you are trying to debug the forward function during training, you need to go into the kernels and edit the code there. Otherwise, the original forward function will be patched and would not be affected.
+
 
 ### Liger Kernel
 [Liger Kernel](https://github.com/linkedin/Liger-Kernel) is a collection of Triton kernels designed specifically for LLM training. It can effectively increase multi-GPU training throughput and reduces memory usage. Based on my testing, it does reduces memory usage when finetuning models. Benchmarking based on my testing under kino stage-1 training settings, it reduces the memory usage by around 30%. The major memory reduction is on the fused CrossEntropy kernel and allow us to use large batch size during training.
