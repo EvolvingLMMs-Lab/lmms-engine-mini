@@ -95,6 +95,10 @@ class LMMsDatasetMixin:
             )
             file_obj.seek(0)
             audio, orig_sr = sf.read(file_obj)
+            # This is an 2d array, so we need to convert it to 1d
+            # Convert the left and right channel to 1
+            if audio.ndim > 1:
+                audio = audio.mean(axis=1)
             audio = DataUtilities.resample_audio(audio, orig_sr, sr)
         else:
             audio = librosa.load(audio_path, sr=sr)[0]

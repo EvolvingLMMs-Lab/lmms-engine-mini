@@ -104,6 +104,10 @@ def count_audio_tokens(audio_path):
     file_obj = get_bytes_from_file(audio_path)
     try:
         audio, orig_sr = sf.read(file_obj)
+        # This is an 2d array, so we need to convert it to 1d
+        # Convert the left and right channel to 1
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
         total_duration_in_seconds = librosa.get_duration(y=audio, sr=orig_sr)
         num_tokens = math.ceil(total_duration_in_seconds * AUDIO_TOKENS_PER_SECOND)
     except Exception as e:
@@ -183,7 +187,7 @@ def check_single_dataset(info):
         for data_folder, d in zip(data_folder, data)
     ]
 
-    with ThreadPool(8) as p:
+    with ThreadPool(32) as p:
         results = list(
             tqdm(
                 p.imap(check_data_exists, data_dict),
@@ -213,5 +217,5 @@ if __name__ == "__main__":
             data_paths, data_folders, data_types
         )
     ]
-    with Pool(8) as p:
+    with Pool(32) as p:
         results = list(tqdm(p.imap(check_single_dataset, info), total=len(info)))
