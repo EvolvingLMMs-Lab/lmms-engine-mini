@@ -187,50 +187,6 @@ class AeroProcessor(ProcessorMixin):
         image_processor_input_names = self.image_processor.model_input_names
         return list(dict.fromkeys(tokenizer_input_names + image_processor_input_names))
 
-    # override to save video-config in a separate config file
-    # override to save audio-config in a separate config file
-    def save_pretrained(self, save_directory, **kwargs):
-        if os.path.isfile(save_directory):
-            raise ValueError(
-                f"Provided path ({save_directory}) should be a directory, not a file"
-            )
-        os.makedirs(save_directory, exist_ok=True)
-        audio_processor_path = os.path.join(save_directory, "audio_processor")
-        self.audio_processor.save_pretrained(audio_processor_path)
-
-        audio_processor_present = "audio_processor" in self.attributes
-        if audio_processor_present:
-            self.attributes.remove("audio_processor")
-
-        outputs = super().save_pretrained(save_directory, **kwargs)
-
-        if audio_processor_present:
-            self.attributes += ["audio_processor"]
-        return outputs
-
-    # override to load video-config from a separate config file
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
-        processor = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-
-        # if return_unused_kwargs a tuple is returned where the second element is 'unused_kwargs'
-        if isinstance(processor, tuple):
-            processor = processor[0]
-
-        try:
-            audio_processor = AutoFeatureExtractor.from_pretrained(
-                pretrained_model_name_or_path, subfolder="audio_processor"
-            )
-            processor.audio_processor = audio_processor
-        except EnvironmentError:
-            logger.info(
-                "You are loading `WhisperFeatureExtractor` but the indicated `path` doesn't contain a folder called "
-                "`audio_processor`. It is strongly recommended to load and save the processor again so the audio processor is saved "
-                "in a separate config."
-            )
-
-        return processor
-
     @property
     def default_chat_template(self):
         # fmt: off
