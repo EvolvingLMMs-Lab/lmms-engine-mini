@@ -22,6 +22,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 from transformers.feature_extraction_utils import BatchFeature
+from transformers.image_utils import ImageInput, VideoInput
 from transformers.models.auto import AutoFeatureExtractor
 from transformers.processing_utils import ProcessingKwargs, ProcessorMixin, Unpack
 from transformers.tokenization_utils_base import PreTokenizedInput, TextInput
@@ -73,6 +74,8 @@ class AeroProcessor(ProcessorMixin):
             TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]
         ] = None,
         audios: Union[np.ndarray, List[np.ndarray]] = None,
+        videos: VideoInput = None,
+        images: ImageInput = None,
         sampling_rate: Optional[int] = None,
         **kwargs: Unpack[AeroProcessorKwargs],
     ) -> BatchFeature:
