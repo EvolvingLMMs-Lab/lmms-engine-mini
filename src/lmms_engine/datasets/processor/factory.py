@@ -4,6 +4,7 @@ from ...protocol import Processable
 from .config import ProcessorConfig
 from .vision import LLaVADataProcessor, Qwen2_5_VLDataProcessor, Qwen2VLDataProcessor
 from .vision_audio import (
+    AeroOmniDataProcessor,
     KinoDataProcessor,
     KinoQwen2_5_DataProcessor,
     Mistral3AudioDataProcessor,
@@ -63,6 +64,8 @@ class ProcessorFactory:
             return KinoQwen2_5_DataProcessor(processor_config)
         elif processor_config.processor_type == "mistral3_audio":
             return Mistral3AudioDataProcessor(processor_config)
+        elif processor_config.processor_type == "aero_omni":
+            return AeroOmniDataProcessor(processor_config)
         else:
             raise NotImplementedError(
                 f"Processor {processor_config.processor_name} not implemented"
