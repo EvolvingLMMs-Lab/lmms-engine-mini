@@ -6,7 +6,9 @@ class AeroOmniConfig(AeroConfig):
         self,
         text_config=None,
         audio_config=None,
-        audio_token_index=151648,
+        audio_token_index=151648,  # These are just some dummy placeholder
+        audio_pad_token_index=151649,
+        audio_token_start_from=151650,
         projector_hidden_act="gelu",
         projector_type="mlp",
         tie_word_embeddings=False,
@@ -16,6 +18,8 @@ class AeroOmniConfig(AeroConfig):
     ):
         self.code_book_size = code_book_size
         self.num_codebooks = num_codebooks
+        self.audio_pad_token_index = audio_pad_token_index
+        self.audio_token_start_from = audio_token_start_from
         super().__init__(
             text_config=text_config,
             audio_config=audio_config,

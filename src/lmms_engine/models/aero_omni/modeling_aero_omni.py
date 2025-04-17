@@ -13,10 +13,11 @@ class AeroOmniForConditionalGeneration(AeroForConditionalGeneration):
 
     def __init__(self, config: AeroOmniConfig):
         super().__init__(config)
-        # Original Vocab Size
+        # Total Vocab Size
         self.vocab_size = config.text_config.vocab_size
         # Additional Audio Vocab
         self.audio_vocab_size = config.code_book_size * config.num_codebooks
+        self.audio_start_from = config.audio_token_start_from
 
     def forward(
         self,
@@ -153,13 +154,12 @@ class AeroOmniForConditionalGeneration(AeroForConditionalGeneration):
             return_dict=return_dict,
             cache_position=cache_position,
             logits_to_keep=logits_to_keep,
-            labels=labels,
         )
 
         logits = outputs[0]
         # Audio Logits should start from the vocab size
-        audio_logits = logits[..., self.vocab_size :, :].contiguous()
-        logits = logits[..., : self.vocab_size, :].contiguous()
+        audio_logits = logits[:, :, self.audio_start_from :].contiguous()
+        logits = logits[:, :, : self.audio_start_from].contiguous()
         loss = outputs.get("loss", None)
         if labels is not None and loss is None:
             # Shift so that tokens < n predict n
@@ -184,6 +184,21 @@ class AeroOmniForConditionalGeneration(AeroForConditionalGeneration):
                 shift_logits.view(-1, shift_logits.size(-1)),
                 shift_labels.view(-1).to(shift_logits.device),
             )
+        # If codec labels is not None
+        # Then we need to calculate the loss for the audio tokens
+        if codec_labels is not None:
+            shift_audio_logits = audio_logits[..., :-1, :].contiguous()
+            shift_audio_labels = codec_labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = nn.CrossEntropyLoss()
+            audio_loss = loss_fct(
+                shift_audio_logits.view(-1, shift_audio_logits.size(-1)),
+                shift_audio_labels.view(-1).to(shift_audio_logits.device),
+            )
+            if loss is not None:
+                loss = loss + audio_loss
+            else:
+                loss = audio_loss
 
         if not return_dict:
             output = (logits,) + outputs[1:]
