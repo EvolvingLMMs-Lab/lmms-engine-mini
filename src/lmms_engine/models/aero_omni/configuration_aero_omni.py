@@ -2,6 +2,8 @@ from ..aero import AeroConfig
 
 
 class AeroOmniConfig(AeroConfig):
+    model_type = "aero_omni"
+
     def __init__(
         self,
         text_config=None,

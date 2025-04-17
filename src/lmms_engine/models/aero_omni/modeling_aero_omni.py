@@ -17,7 +17,10 @@ class AeroOmniForConditionalGeneration(AeroForConditionalGeneration):
         self.vocab_size = config.text_config.vocab_size
         # Additional Audio Vocab
         self.audio_vocab_size = config.code_book_size * config.num_codebooks
-        self.audio_start_from = config.audio_token_start_from
+        # Okay .... a bit confused ah, but I just want to clarify here
+        # Audio pad token is also a token for audio stream, and I add it before these special tokens
+        # So the start from actually is the pad token index
+        self.audio_start_from = config.audio_pad_token_index
 
     def forward(
         self,

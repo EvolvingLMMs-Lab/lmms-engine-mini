@@ -118,7 +118,7 @@ def qwen2_lce_forward(
             loss /= loss_kwargs["num_items_in_batch"]
 
     else:  # if in inference mode materialize logits
-        logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+        logits = self.lm_head(hidden_states)
         if labels is not None:
             loss = self.loss_function(
                 logits=logits,

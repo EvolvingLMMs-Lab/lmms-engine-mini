@@ -183,6 +183,20 @@ class AeroProcessor(ProcessorMixin):
         """
         return self.tokenizer.decode(*args, **kwargs)
 
+    def batch_encode(self, *args, **kwargs):
+        """
+        This method forwards all its arguments to LlamaTokenizerFast's [`~PreTrainedTokenizer.batch_encode`]. Please
+        refer to the docstring of this method for more information.
+        """
+        return self.tokenizer.batch_encode(*args, **kwargs)
+
+    def encode(self, *args, **kwargs):
+        """
+        This method forwards all its arguments to LlamaTokenizerFast's [`~PreTrainedTokenizer.encode`]. Please refer to
+        the docstring of this method for more information.
+        """
+        return self.tokenizer.encode(*args, **kwargs)
+
     @property
     # Copied from transformers.models.clip.processing_clip.CLIPProcessor.model_input_names
     def model_input_names(self):
