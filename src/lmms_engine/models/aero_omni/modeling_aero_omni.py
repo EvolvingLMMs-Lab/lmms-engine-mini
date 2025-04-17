@@ -161,26 +161,13 @@ class AeroOmniForConditionalGeneration(AeroForConditionalGeneration):
 
         logits = outputs[0]
         # Audio Logits should start from the vocab size
-        audio_logits = logits[:, :, self.audio_start_from :].contiguous()
-        logits = logits[:, :, : self.audio_start_from].contiguous()
+        audio_logits = logits[..., :, self.audio_start_from :].contiguous()
+        logits = logits[..., :, : self.audio_start_from].contiguous()
         loss = outputs.get("loss", None)
         if labels is not None and loss is None:
             # Shift so that tokens < n predict n
-            if attention_mask is not None:
-                # we use the input attention mask to shift the logits and labels, because it is 2D.
-                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
-                shift_attention_mask = attention_mask[:, -(logits.shape[1] - 1) :].to(
-                    logits.device
-                )
-                shift_logits = logits[..., :-1, :][
-                    shift_attention_mask.to(logits.device) != 0
-                ].contiguous()
-                shift_labels = labels[..., 1:][
-                    shift_attention_mask.to(labels.device) != 0
-                ].contiguous()
-            else:
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
             # Flatten the tokens
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(

@@ -117,6 +117,7 @@ class AeroOmniDataProcessor(KinoDataProcessor):
                 # When it is assistant, hardcode the first 3 for
                 # <|im_start|>assistant\n
                 audio_input_id += [self.audio_pad_token_id] * 3
+                codec_label += [-100] * 3
                 # Assuming that the assistant all text
                 for cont in message["content"]:
                     audio_token = self.processor.encode(cont["audio_text"])
