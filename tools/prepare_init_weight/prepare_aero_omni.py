@@ -12,6 +12,7 @@ from lmms_engine.models.aero import AeroProcessor
 from lmms_engine.models.aero_omni import (
     AeroOmniConfig,
     AeroOmniForConditionalGeneration,
+    AeroOmniProcessor,
 )
 
 
@@ -73,6 +74,12 @@ def main(args):
 
         config.audio_pad_token_index = audio_pad_token_idx
         config.audio_token_start_from = audio_token_start_from
+        new_processor = AeroOmniProcessor(
+            tokenizer=tokenizer,
+            audio_processor=processor.audio_processor,
+            audio_pad_token="<|audio_pad|>",
+            audio_special_token_prefix="<|audio_token_",
+        )
 
         # Expand the model's embeddings
         print(f"Expanding embeddings")
@@ -122,13 +129,12 @@ def main(args):
 
         # Save the model
         model.save_pretrained(args.output_dir)
-        processor.tokenizer = tokenizer
-        processor.save_pretrained(args.output_dir)
+        new_processor.save_pretrained(args.output_dir)
 
     model = AeroOmniForConditionalGeneration.from_pretrained(
         args.output_dir, device_map="cuda", torch_dtype="auto"
     )
-    processor = AeroProcessor.from_pretrained(args.output_dir)
+    processor = AeroOmniProcessor.from_pretrained(args.output_dir)
 
     audio = load_audio()
     messages = [
