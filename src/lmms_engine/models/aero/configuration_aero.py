@@ -33,18 +33,10 @@ class AeroConfig(PretrainedConfig):
         text_config=None,
         audio_config=None,
         audio_token_index=151648,
-        projector_hidden_act="gelu",
-        projector_type="mlp",
-        vision_feature_select_strategy="full",
-        vision_feature_layer=-1,
-        vision_aspect_ratio="anyres_max_9",
-        image_grid_pinpoints=None,
         tie_word_embeddings=False,
         **kwargs,
     ):
         self.audio_token_index = audio_token_index
-        self.projector_hidden_act = projector_hidden_act
-        self.projector_type = projector_type
 
         if isinstance(text_config, dict):
             text_config["model_type"] = (
