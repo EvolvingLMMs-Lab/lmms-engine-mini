@@ -59,11 +59,17 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             if self.config.dataset_format == "yaml":
                 self.data_folder = [self.data_folder[i] for i in data_index]
 
-        self.data_lengths = (
-            self._estimate_data_tokens(self.data_list)
-            if self.config.dataset_format != "hf_dataset"
-            else self.data_list_no_image
-        )
+        if not isinstance(self.data_list, HFDataset):
+            self.data_lengths = (
+                self._estimate_data_tokens(self.data_list)
+                if self.config.dataset_format != "hf_dataset"
+                else self.data_list_no_image
+            )
+        else:
+            self.data_lengths = torch.randint(
+                low=100, high=2000, size=(len(self.data_list),)
+            )
+            self.data_lengths = self.data_lengths.tolist()
         if self.config.packing:
             if self.config.packing_strategy is None:
                 raise ValueError("Packing strategy is not specified.")
