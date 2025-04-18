@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 import librosa
 import numpy as np
 import torch
+from datasets import Dataset as HFDataset
 from datasets import Sequence, load_dataset, load_from_disk
 from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
@@ -48,9 +49,13 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             raise NotImplementedError
 
         if self.config.shuffle:
+            Logging.info("Shuffle Dataset ...")
             data_index = [i for i in range(len(self.data_list))]
             random.shuffle(data_index)
-            self.data_list = [self.data_list[i] for i in data_index]
+            if isinstance(self.data_list, HFDataset):
+                self.data_list = self.data_list.select(data_index)
+            else:
+                self.data_list = [self.data_list[i] for i in data_index]
             if self.config.dataset_format == "yaml":
                 self.data_folder = [self.data_folder[i] for i in data_index]
 
