@@ -267,7 +267,23 @@ def apply_liger_kernel_to_aero_omni(
     model: PreTrainedModel = None,
     use_rmpad: bool = False,
 ):
-    apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
+    apply_liger_kernel_to_aero(
+        rope=rope,
+        cross_entropy=cross_entropy,
+        fused_linear_cross_entropy=fused_linear_cross_entropy,
+        rms_norm=rms_norm,
+        swiglu=swiglu,
+        model=model,
+        use_rmpad=use_rmpad,
+    )
+
+    if use_rmpad:
+        from ..aero_omni import modeling_aero_omni
+        from .rmpad.aero_omni_ops import forward as aero_omni_ops_forward
+
+        modeling_aero_omni.AeroOmniForConditionalGeneration.forward = (
+            aero_omni_ops_forward
+        )
 
 
 def apply_liger_kernel_to_qwen2_audio(

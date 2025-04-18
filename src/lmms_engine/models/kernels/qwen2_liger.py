@@ -2,6 +2,8 @@ from typing import List, Optional, Tuple, Union
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+from .rmpad.utils import BaseModelOutputWithPastAndRmpad
+
 try:
     from liger_kernel.transformers.fused_linear_cross_entropy import (
         LigerFusedLinearCrossEntropyLoss,
@@ -131,6 +133,6 @@ def qwen2_lce_forward(
         loss=loss,
         logits=logits,
         past_key_values=outputs.past_key_values,
-        hidden_states=outputs.hidden_states,
+        hidden_states=hidden_states,
         attentions=outputs.attentions,
     )
