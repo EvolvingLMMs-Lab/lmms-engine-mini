@@ -10,6 +10,8 @@ class AeroOmniConfig(AeroConfig):
         audio_config=None,
         audio_token_index=151648,  # These are just some dummy placeholder
         audio_pad_token_index=151649,
+        audio_bos_token_index=151651,
+        audio_eos_token_index=151652,
         audio_token_start_from=151650,
         projector_hidden_act="gelu",
         projector_type="mlp",
@@ -22,6 +24,8 @@ class AeroOmniConfig(AeroConfig):
         self.num_codebooks = num_codebooks
         self.audio_pad_token_index = audio_pad_token_index
         self.audio_token_start_from = audio_token_start_from
+        self.audio_bos_token_index = audio_bos_token_index
+        self.audio_eos_token_index = audio_eos_token_index
         super().__init__(
             text_config=text_config,
             audio_config=audio_config,

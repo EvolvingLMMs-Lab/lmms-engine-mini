@@ -21,12 +21,20 @@ class DuplexCollator(VisionCollator):
         audio_input_ids = inputs.pop("audio_input_ids")
         codec_labels = inputs.pop("codec_labels")
         split_sizes = [len(input_ids), len(audio_input_ids)]
-        merged_input_ids = input_ids + audio_input_ids
+        # First pad input ids by padding tokens
+        padded_input_ids = self.pad_sequence(
+            input_ids,
+            batch_first=True,
+            padding_value=self.processor.tokenizer.pad_token_id,
+        )
+        padded_input_ids = [p for p in padded_input_ids]
+        merged_input_ids = padded_input_ids + audio_input_ids
         merged_labels = labels + codec_labels
+        # Then pad the text and audio together by audio pad token id
         merged_input_ids = self.pad_sequence(
             merged_input_ids,
             batch_first=True,
-            padding_value=self.processor.tokenizer.pad_token_id,
+            padding_value=self.processor.audio_pad_token_id,
         )
         merged_labels = self.pad_sequence(
             merged_labels,
@@ -35,7 +43,8 @@ class DuplexCollator(VisionCollator):
         )
         input_ids, audio_input_ids = merged_input_ids.split(split_sizes)
         labels, codec_labels = merged_labels.split(split_sizes)
-        attention_mask = input_ids.ne(self.processor.tokenizer.pad_token_id)
+        # Assume audio is always longer than text
+        attention_mask = input_ids.ne(self.processor.audio_pad_token_id)
         batched_inputs = {}
         for key, values in inputs.items():
             batched_inputs[key] = torch.concatenate(values, dim=0)

@@ -121,11 +121,21 @@ class AeroOmniDataProcessor(KinoDataProcessor):
                 # Assuming that the assistant all text
                 for cont in message["content"]:
                     audio_token = self.processor.encode(cont["audio_text"])
+                    # Delay = 1
+                    audio_input_id += [self.audio_bos_token_id]
                     audio_input_id += audio_token
+                    # All audio tokens need a shift because we start from (text, audio_pad, audio1, ...)
+                    codec_label += [
+                        self.audio_bos_token_id - self.audio_pad_token_id - 1
+                    ]
                     # Because we splitted the lm head when calculating loss
                     # So we adjust the position of audio token
-                    audio_token = [a - self.audio_pad_token_id for a in audio_token]
+                    audio_token = [a - self.audio_pad_token_id - 1 for a in audio_token]
                     codec_label += audio_token
+                    audio_input_id += [self.audio_eos_token_id]
+                    codec_label += [
+                        self.audio_eos_token_id - self.audio_pad_token_id - 1
+                    ]
 
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         for idx, encode_id in enumerate(input_id):
@@ -154,4 +164,24 @@ class AeroOmniDataProcessor(KinoDataProcessor):
         else:
             return self.processor.tokenizer.convert_tokens_to_ids(
                 self.processor.audio_pad_token
+            )
+
+    @property
+    def audio_bos_token_id(self):
+        audio_bos_token = getattr(self.processor, "audio_bos_token", None)
+        if audio_bos_token is None:
+            return None
+        else:
+            return self.processor.tokenizer.convert_tokens_to_ids(
+                self.processor.audio_bos_token
+            )
+
+    @property
+    def audio_eos_token_id(self):
+        audio_eos_token = getattr(self.processor, "audio_eos_token", None)
+        if audio_eos_token is None:
+            return None
+        else:
+            return self.processor.tokenizer.convert_tokens_to_ids(
+                self.processor.audio_eos_token
             )
