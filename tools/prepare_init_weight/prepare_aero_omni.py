@@ -66,14 +66,26 @@ def main(args):
             )
             pbar.update(1)
         pbar.close()
+        tokenizer.add_tokens(
+            AddedToken("<|audio_bos|>", special=True, normalized=False),
+            special_tokens=True,
+        )
+        tokenizer.add_tokens(
+            AddedToken("<|audio_eos|>", special=True, normalized=False),
+            special_tokens=True,
+        )
 
         audio_pad_token_idx = processor.tokenizer.convert_tokens_to_ids("<|audio_pad|>")
         audio_token_start_from = processor.tokenizer.convert_tokens_to_ids(
             "<|audio_token_0|>"
         )
+        audio_bos_token_idx = processor.tokenizer.convert_tokens_to_ids("<|audio_bos|>")
+        audio_eos_token_idx = processor.tokenizer.convert_tokens_to_ids("<|audio_eos|>")
 
         config.audio_pad_token_index = audio_pad_token_idx
         config.audio_token_start_from = audio_token_start_from
+        config.audio_bos_token_index = audio_bos_token_idx
+        config.audio_eos_token_index = audio_eos_token_idx
         new_processor = AeroOmniProcessor(
             tokenizer=tokenizer,
             audio_processor=processor.audio_processor,
