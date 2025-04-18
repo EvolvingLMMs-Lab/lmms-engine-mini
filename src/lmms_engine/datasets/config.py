@@ -9,7 +9,7 @@ class DatasetConfig:
     dataset_type: Literal[
         "vision", "vision_audio", "vision_preference", "grpo", "duplex"
     ]
-    dataset_format: Literal["json", "jsonl", "yaml", "hf_dataset"]
+    dataset_format: Literal["json", "jsonl", "yaml", "hf_dataset", "arrow"]
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
     shuffle: bool = True
