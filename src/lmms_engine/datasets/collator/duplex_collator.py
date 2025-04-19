@@ -43,8 +43,12 @@ class DuplexCollator(VisionCollator):
         )
         input_ids, audio_input_ids = merged_input_ids.split(split_sizes)
         labels, codec_labels = merged_labels.split(split_sizes)
-        # Assume audio is always longer than text
-        attention_mask = input_ids.ne(self.processor.audio_pad_token_id)
+        # For text input ids, the attention mask is those that not equal to pad token id
+        # For audio input ids, the attention mask is those that not equal to audio pad token id
+        # For the final attention mask, we combine both masks
+        attention_mask = input_ids.ne(self.processor.tokenizer.pad_token_id)
+        audio_attention_mask = audio_input_ids.ne(self.processor.audio_pad_token_id)
+        attention_mask = torch.logical_or(attention_mask, audio_attention_mask)
         batched_inputs = {}
         for key, values in inputs.items():
             batched_inputs[key] = torch.concatenate(values, dim=0)
