@@ -120,7 +120,7 @@ class AeroOmniDataProcessor(KinoDataProcessor):
                 codec_label += [-100] * 3
                 # Assuming that the assistant all text
                 for cont in message["content"]:
-                    audio_token = self.processor.encode(cont["audio_text"])
+                    audio_token = cont["audio_text"]
                     # Delay = 1
                     audio_input_id += [self.audio_bos_token_id]
                     audio_input_id += audio_token

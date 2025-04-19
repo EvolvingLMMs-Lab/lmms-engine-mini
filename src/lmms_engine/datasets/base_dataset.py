@@ -120,8 +120,7 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
                     elif cont["type"] == "text":
                         cur_len += len(cont["text"].split()) * 1.5
                         if "audio_text" in cont:
-                            # <|audio_token_x|> length 17
-                            cur_len = max(cur_len, len(cont["text"]) // 17)
+                            cur_len = max(cur_len, len(cont["text"]))
                     else:
                         raise TypeError(
                             f"Encountered invalid content type {cont['type']}"
