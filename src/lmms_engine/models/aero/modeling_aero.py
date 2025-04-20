@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
 from transformers import AutoConfig, AutoModel, Qwen2AudioEncoder
@@ -88,6 +89,68 @@ class AeroCausalLMOutputWithPast(ModelOutput):
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     audio_hidden_states: Optional[torch.FloatTensor] = None
     flops: Optional[Union[float, int]] = None
+
+
+def qwen_omni_audio_forward(
+    self,
+    input_features,
+    feature_lens=None,
+    aftercnn_lens=None,
+):
+    chunk_num = torch.ceil(feature_lens / (self.n_window * 2)).long()
+
+    chunk_lengths = torch.tensor(
+        [self.n_window * 2] * chunk_num.sum(),
+        dtype=torch.long,
+        device=feature_lens.device,
+    )
+    tail_chunk_index = F.pad(chunk_num, (1, 0), value=-1).cumsum(0)[1:]
+    chunk_lengths[tail_chunk_index] = feature_lens % (self.n_window * 2)
+    chunk_lengths = torch.where(chunk_lengths == 0, self.n_window * 2, chunk_lengths)
+
+    chunk_list = input_features.split(chunk_lengths.tolist(), dim=1)
+    padded_feature, padded_mask, padded_mask_after_cnn = self.padded_and_mask_function(
+        chunk_list, chunk_lengths, padding_value=0, padding_side="right"
+    )
+    padded_embed = nn.functional.gelu(self.conv1(padded_feature)) * padded_mask
+    padded_embed = nn.functional.gelu(self.conv2(padded_embed)).transpose(1, 2)
+
+    padded_embed = padded_embed + self.positional_embedding.positional_embedding[
+        : padded_embed.shape[1], :
+    ].unsqueeze(0).to(padded_embed.dtype)
+    hidden_states = padded_embed[padded_mask_after_cnn]
+    cu_seqlens = torch.cat(
+        (
+            torch.zeros(1, device=padded_mask_after_cnn.device, dtype=torch.int32),
+            padded_mask_after_cnn.sum(1).cumsum(0),
+        )
+    ).to(torch.int32)
+
+    for idx, encoder_layer in enumerate(self.layers):
+        if self.gradient_checkpointing and self.training:
+            layer_outputs = self._gradient_checkpointing_func(
+                encoder_layer.__call__,
+                hidden_states,
+                cu_seqlens,
+            )
+        else:
+            layer_outputs = encoder_layer(
+                hidden_states,
+                cu_seqlens,
+            )
+
+        hidden_states = layer_outputs[0]
+
+    hidden_states_list = hidden_states.split(aftercnn_lens.tolist(), dim=0)
+    token_audio_list = []
+    for each_audio_states in hidden_states_list:
+        # Remove pooling
+        # each_audio_states = self.avg_pooler(each_audio_states.transpose(0, 1)).transpose_(0, 1)
+        each_audio_states = self.ln_post(each_audio_states)
+        each_audio_states = self.proj(each_audio_states)
+        token_audio_list.append(each_audio_states)
+    token_audio = torch.cat(token_audio_list, dim=0)
+    return BaseModelOutput(last_hidden_state=token_audio)
 
 
 class AeroAudioMultiModalProjector(nn.Module):
@@ -166,8 +229,11 @@ class AeroForConditionalGeneration(AeroPreTrainedModel, GenerationMixin):
     def __init__(self, config: AeroConfig):
         super().__init__(config)
 
-        self.audio_tower = AutoModel.from_config(config.audio_config)
         self.audio_tower_type = config.audio_config.model_type
+        # Patch the forward function of the audio tower to remove pooling
+        if self.audio_tower_type == "qwen2_5_omni_audio_encoder":
+            Qwen2_5OmniAudioEncoder.forward = qwen_omni_audio_forward
+        self.audio_tower = AutoModel.from_config(config.audio_config)
         self.audio_modal_projector = PROJECTOR_MAP[self.audio_tower_type](config)
         self.vocab_size = config.text_config.vocab_size
         self.language_model = AutoModelForCausalLM.from_config(config.text_config)
