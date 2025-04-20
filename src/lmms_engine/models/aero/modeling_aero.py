@@ -145,7 +145,17 @@ def qwen_omni_audio_forward(
     token_audio_list = []
     for each_audio_states in hidden_states_list:
         # Remove pooling
-        # each_audio_states = self.avg_pooler(each_audio_states.transpose(0, 1)).transpose_(0, 1)
+        if each_audio_states.shape[0] <= 4:
+            padded_values = torch.zeros(
+                4 - each_audio_states.shape[0],
+                each_audio_states.shape[1],
+                dtype=each_audio_states.dtype,
+                device=each_audio_states.device,
+            )
+            each_audio_states = torch.cat([each_audio_states, padded_values], dim=0)
+        each_audio_states = self.avg_pooler(
+            each_audio_states.transpose(0, 1)
+        ).transpose_(0, 1)
         each_audio_states = self.ln_post(each_audio_states)
         each_audio_states = self.proj(each_audio_states)
         token_audio_list.append(each_audio_states)
