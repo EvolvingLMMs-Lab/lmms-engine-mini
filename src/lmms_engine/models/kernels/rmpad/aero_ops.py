@@ -62,35 +62,22 @@ def forward(
         ) = self.audio_tower._get_feat_extract_output_lengths(
             audio_attention_mask.sum(-1)
         )
-        batch_size, _, max_mel_seq_len = audio_values.shape
-        max_seq_len = (max_mel_seq_len - 2) // 2 + 1
-        # Create a sequence tensor of shape (batch_size, max_seq_len)
-        seq_range = (
-            torch.arange(
-                0,
-                max_seq_len,
-                dtype=audio_feat_lengths.dtype,
-                device=audio_feat_lengths.device,
+        if self.audio_tower_type == "qwen2_audio_encoder":
+            inputs = self.prepare_inputs_for_qwen_audio_encoder(
+                audio_values=audio_values,
+                audio_attention_mask=audio_attention_mask,
+                audio_feat_lengths=audio_feat_lengths,
+                audio_output_lengths=audio_output_lengths,
             )
-            .unsqueeze(0)
-            .expand(batch_size, max_seq_len)
-        )
-        lengths_expand = audio_feat_lengths.unsqueeze(1).expand(batch_size, max_seq_len)
-        # Create mask
-        padding_mask = seq_range >= lengths_expand
+        elif self.audio_tower_type == "qwen2_5_omni_audio_encoder":
+            inputs = self.prepare_inputs_for_qwen_5_omni_audio_encoder(
+                audio_values=audio_values,
+                audio_attention_mask=audio_attention_mask,
+                audio_feat_lengths=audio_feat_lengths,
+                audio_output_lengths=audio_output_lengths,
+            )
 
-        audio_attention_mask_ = padding_mask.view(batch_size, 1, 1, max_seq_len).expand(
-            batch_size, 1, max_seq_len, max_seq_len
-        )
-        audio_attention_mask = audio_attention_mask_.to(
-            dtype=self.audio_tower.conv1.weight.dtype,
-            device=self.audio_tower.conv1.weight.device,
-        )
-        audio_attention_mask[audio_attention_mask_] = float("-inf")
-
-        audio_outputs = self.audio_tower(
-            audio_values, attention_mask=audio_attention_mask
-        )
+        audio_outputs = self.audio_tower(**inputs)
         selected_audio_feature = audio_outputs.last_hidden_state
         audio_features = self.audio_modal_projector(selected_audio_feature)
         n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
@@ -106,21 +93,11 @@ def forward(
             .to(inputs_embeds.device)
         )
         audio_features = audio_features.to(inputs_embeds.device, inputs_embeds.dtype)
-        # Audio feature is in (bs, max_seq_len, hidden_size)
-        # If directly masked scatter, the embed will be place one by one (order is incorret)
-        # We remove the padded values first
-        unpadded_audio_features = [
-            audio_feat[:audio_output_length]
-            for audio_feat, audio_output_length in zip(
+        if self.audio_tower_type == "qwen2_audio_encoder":
+            audio_features = self.prepare_scattered_audio_values(
                 audio_features, audio_output_lengths
             )
-        ]
-        # Concat the audio features
-        # Should exactly have audio_mask.sum() values
-        unpadded_audio_features = torch.concatenate(unpadded_audio_features, dim=0)
-        inputs_embeds = inputs_embeds.masked_scatter(
-            audio_mask, unpadded_audio_features
-        )
+        inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_features)
 
     n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
     flops = self.calc_gpt_flops(attention_mask, n_audio_tokens)
