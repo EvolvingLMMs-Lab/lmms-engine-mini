@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 import librosa
 import numpy as np
 import torch
+import torch.distributed as dist
 from datasets import Dataset as HFDataset
 from datasets import Sequence, load_dataset, load_from_disk
 from PIL import Image, PngImagePlugin
@@ -91,7 +92,11 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
 
     def _estimate_data_tokens(self, data_list):
         lengths = []
-        pbar = tqdm(total=len(data_list), desc="Estimating data tokens...")
+        pbar = tqdm(
+            total=len(data_list),
+            desc="Estimating data tokens...",
+            disable=dist.get_rank() != 0,
+        )
         for data in data_list:
             if "chosen" in data or "rejected" in data:
                 raise ValueError("Preference learning is not supported for now.")
