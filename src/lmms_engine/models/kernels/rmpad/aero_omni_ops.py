@@ -85,35 +85,22 @@ def forward(
         ) = self.audio_tower._get_feat_extract_output_lengths(
             audio_attention_mask.sum(-1)
         )
-        batch_size, _, max_mel_seq_len = audio_values.shape
-        max_seq_len = (max_mel_seq_len - 2) // 2 + 1
-        # Create a sequence tensor of shape (batch_size, max_seq_len)
-        seq_range = (
-            torch.arange(
-                0,
-                max_seq_len,
-                dtype=audio_feat_lengths.dtype,
-                device=audio_feat_lengths.device,
+        if self.audio_tower_type == "qwen2_audio_encoder":
+            inputs = self.prepare_inputs_for_qwen_audio_encoder(
+                audio_values=audio_values,
+                audio_attention_mask=audio_attention_mask,
+                audio_feat_lengths=audio_feat_lengths,
+                audio_output_lengths=audio_output_lengths,
             )
-            .unsqueeze(0)
-            .expand(batch_size, max_seq_len)
-        )
-        lengths_expand = audio_feat_lengths.unsqueeze(1).expand(batch_size, max_seq_len)
-        # Create mask
-        padding_mask = seq_range >= lengths_expand
+        elif self.audio_tower_type == "qwen2_5_omni_audio_encoder":
+            inputs = self.prepare_inputs_for_qwen_5_omni_audio_encoder(
+                audio_values=audio_values,
+                audio_attention_mask=audio_attention_mask,
+                audio_feat_lengths=audio_feat_lengths,
+                audio_output_lengths=audio_output_lengths,
+            )
 
-        audio_attention_mask_ = padding_mask.view(batch_size, 1, 1, max_seq_len).expand(
-            batch_size, 1, max_seq_len, max_seq_len
-        )
-        audio_attention_mask = audio_attention_mask_.to(
-            dtype=self.audio_tower.conv1.weight.dtype,
-            device=self.audio_tower.conv1.weight.device,
-        )
-        audio_attention_mask[audio_attention_mask_] = float("-inf")
-
-        audio_outputs = self.audio_tower(
-            audio_values, attention_mask=audio_attention_mask
-        )
+        audio_outputs = self.audio_tower(**inputs)
         selected_audio_feature = audio_outputs.last_hidden_state
         audio_features = self.audio_modal_projector(selected_audio_feature)
         n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
@@ -129,21 +116,11 @@ def forward(
             .to(inputs_embeds.device)
         )
         audio_features = audio_features.to(inputs_embeds.device, inputs_embeds.dtype)
-        # Audio feature is in (bs, max_seq_len, hidden_size)
-        # If directly masked scatter, the embed will be place one by one (order is incorret)
-        # We remove the padded values first
-        unpadded_audio_features = [
-            audio_feat[:audio_output_length]
-            for audio_feat, audio_output_length in zip(
+        if self.audio_tower_type == "qwen2_audio_encoder":
+            audio_features = self.prepare_scattered_audio_values(
                 audio_features, audio_output_lengths
             )
-        ]
-        # Concat the audio features
-        # Should exactly have audio_mask.sum() values
-        unpadded_audio_features = torch.concatenate(unpadded_audio_features, dim=0)
-        inputs_embeds = inputs_embeds.masked_scatter(
-            audio_mask, unpadded_audio_features
-        )
+        inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_features)
 
     n_audio_tokens = (input_ids == self.config.audio_token_index).sum().item()
     flops = self.calc_gpt_flops(attention_mask, n_audio_tokens)
@@ -166,11 +143,17 @@ def forward(
 
     if labels is not None:
         labels = labels.view(-1)[indices.long()]
-        # We do the same thing as ForCausalLMLoss but using Liger FLCE
-
-        shift_hidden_states = hidden_states[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
-
+        shift_hidden_states = []
+        shift_labels = []
+        for i in range(len(cu_seq_lens) - 1):
+            cur_hidden_states = hidden_states[cu_seq_lens[i] : cu_seq_lens[i + 1], :]
+            cur_shift_hidden_states = cur_hidden_states[:-1, :].contiguous()
+            cur_labels = labels[cu_seq_lens[i] : cu_seq_lens[i + 1]]
+            cur_shift_labels = cur_labels[1:].contiguous()
+            shift_hidden_states.append(cur_shift_hidden_states)
+            shift_labels.append(cur_shift_labels)
+        shift_hidden_states = torch.cat(shift_hidden_states, dim=0)
+        shift_labels = torch.cat(shift_labels, dim=0)
         # flatten tokens
         shift_hidden_states = shift_hidden_states.view(
             -1, self.config.text_config.hidden_size
@@ -186,8 +169,18 @@ def forward(
     # If codec labels is not None
     # Then we need to calculate the loss for the audio tokens
     if codec_labels is not None:
-        shift_audio_hidden_states = hidden_states[..., :-1, :].contiguous()
-        shift_audio_labels = codec_labels[..., 1:].contiguous()
+        codec_labels = codec_labels.view(-1)[indices.long()]
+        shift_audio_hidden_states = []
+        shift_audio_labels = []
+        for i in range(len(cu_seq_lens) - 1):
+            cur_hidden_states = hidden_states[cu_seq_lens[i] : cu_seq_lens[i + 1], :]
+            cur_shift_hidden_states = cur_hidden_states[:-1, :].contiguous()
+            cur_labels = codec_labels[cu_seq_lens[i] : cu_seq_lens[i + 1]]
+            cur_shift_labels = cur_labels[1:].contiguous()
+            shift_audio_hidden_states.append(cur_shift_hidden_states)
+            shift_audio_labels.append(cur_shift_labels)
+        shift_audio_hidden_states = torch.cat(shift_audio_hidden_states, dim=0)
+        shift_audio_labels = torch.cat(shift_audio_labels, dim=0)
 
         # flatten tokens
         shift_audio_hidden_states = shift_audio_hidden_states.view(
