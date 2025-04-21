@@ -103,10 +103,24 @@ def qwen2_lce_forward(
     if self.training and (labels is not None):
         if use_rmpad:
             labels = labels.view(-1)[word_idx.long()]
-        # We do the same thing as ForCausalLMLoss but using Liger FLCE
+            # We need to shift the tokens according to seq lens
+            # Otherwise, the first labels of the next seq will be the last labels of the current seq
+            shift_hidden_states = []
+            shift_labels = []
+            for i in range(len(seq_lens) - 1):
+                cur_hidden_states = hidden_states[seq_lens[i] : seq_lens[i + 1], :]
+                cur_shift_hidden_states = cur_hidden_states[:-1, :].contiguous()
+                cur_labels = labels[seq_lens[i] : seq_lens[i + 1]]
+                cur_shift_labels = cur_labels[1:].contiguous()
+                shift_hidden_states.append(cur_shift_hidden_states)
+                shift_labels.append(cur_shift_labels)
+            shift_hidden_states = torch.cat(shift_hidden_states, dim=0)
+            shift_labels = torch.cat(shift_labels, dim=0)
+        else:
+            # We do the same thing as ForCausalLMLoss but using Liger FLCE
 
-        shift_hidden_states = hidden_states[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
+            shift_hidden_states = hidden_states[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
 
         # flatten tokens
         shift_hidden_states = shift_hidden_states.view(-1, self.config.hidden_size)
