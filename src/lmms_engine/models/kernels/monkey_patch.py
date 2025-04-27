@@ -172,7 +172,7 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
                 _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
 
 
-def apply_liger_kernel_to_kino_qwen2(
+def apply_liger_kernel_to_aero(
     rope: bool = True,
     cross_entropy: bool = False,
     fused_linear_cross_entropy: bool = True,
@@ -181,21 +181,6 @@ def apply_liger_kernel_to_kino_qwen2(
     model: PreTrainedModel = None,
     use_rmpad: bool = False,
 ) -> None:
-    """
-    Apply Liger kernels to replace original implementation in HuggingFace Qwen2 models
-
-    Args:
-        rope (bool): Whether to apply Liger's rotary position embedding. Default is True.
-        cross_entropy (bool): Whether to apply Liger's cross entropy loss. Default is False.
-        fused_linear_cross_entropy (bool):
-            Whether to apply Liger's fused linear cross entropy loss. Default is True.
-            `cross_entropy` and `fused_linear_cross_entropy` cannot both be True.
-            If `fused_linear_cross_entropy` is True, the logits will not be materialized but more memory efficient.
-        rms_norm (bool): Whether to apply Liger's RMSNorm. Default is True.
-        swiglu (bool): Whether to apply Liger's SwiGLU MLP. Default is True.
-        model (PreTrainedModel): The model instance to apply Liger kernels to, if the model has already been
-        loaded. Default is None.
-    """
     assert not (
         cross_entropy and fused_linear_cross_entropy
     ), "cross_entropy and fused_linear_cross_entropy cannot both be True."
@@ -203,7 +188,7 @@ def apply_liger_kernel_to_kino_qwen2(
     from transformers.models.qwen2 import modeling_qwen2
     from transformers.models.qwen2.modeling_qwen2 import Qwen2Model
 
-    from ..kino import modeling_kino
+    from ..aero import modeling_aero
 
     if rope:
         modeling_qwen2.apply_rotary_pos_emb = liger_rotary_pos_emb
@@ -221,7 +206,6 @@ def apply_liger_kernel_to_kino_qwen2(
 
     if fused_linear_cross_entropy:
         from .qwen2_liger import qwen2_lce_forward
-        from .rmpad.kino_ops import forward as kino_ops_forward
 
         if use_rmpad:
 
@@ -234,13 +218,13 @@ def apply_liger_kernel_to_kino_qwen2(
 
             qwen2_lce_forward = wrap_forward(qwen2_lce_forward)
         modeling_qwen2.Qwen2ForCausalLM.forward = qwen2_lce_forward
-        modeling_kino.KinoForConditionalGeneration.forward = kino_ops_forward
 
     if swiglu:
         modeling_qwen2.Qwen2MLP = LigerSwiGLUMLP
     apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
     if use_rmpad:
+        from .rmpad.aero_ops import forward as aero_ops_forward
         from .rmpad.qwen2_ops import attn_forward as qwen2_ops_attn_forward
         from .rmpad.qwen2_ops import (
             decoder_layer_forward as qwen2_ops_decoder_layer_forward,
@@ -250,6 +234,7 @@ def apply_liger_kernel_to_kino_qwen2(
         modeling_qwen2.Qwen2Model.forward = qwen2_ops_model_forward
         modeling_qwen2.Qwen2DecoderLayer.forward = qwen2_ops_decoder_layer_forward
         modeling_qwen2.Qwen2Attention.forward = qwen2_ops_attn_forward
+        modeling_aero.AeroForConditionalGeneration.forward = aero_ops_forward
 
     if model is not None:
         # The model instance already exists, so we need to additionally patch the
@@ -271,6 +256,34 @@ def apply_liger_kernel_to_kino_qwen2(
             if rms_norm:
                 _patch_rms_norm_module(decoder_layer.input_layernorm)
                 _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
+
+
+def apply_liger_kernel_to_aero_omni(
+    rope: bool = True,
+    cross_entropy: bool = False,
+    fused_linear_cross_entropy: bool = True,
+    rms_norm: bool = True,
+    swiglu: bool = True,
+    model: PreTrainedModel = None,
+    use_rmpad: bool = False,
+):
+    apply_liger_kernel_to_aero(
+        rope=rope,
+        cross_entropy=cross_entropy,
+        fused_linear_cross_entropy=fused_linear_cross_entropy,
+        rms_norm=rms_norm,
+        swiglu=swiglu,
+        model=model,
+        use_rmpad=use_rmpad,
+    )
+
+    if use_rmpad:
+        from ..aero_omni import modeling_aero_omni
+        from .rmpad.aero_omni_ops import forward as aero_omni_ops_forward
+
+        modeling_aero_omni.AeroOmniForConditionalGeneration.forward = (
+            aero_omni_ops_forward
+        )
 
 
 def apply_liger_kernel_to_qwen2_audio(
@@ -306,7 +319,8 @@ def apply_liger_kernel_to_qwen2_audio(
 
 CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN = {
     "kino_qwen2_5_vl": apply_liger_kernel_to_kino_qwen2_5_vl,
-    "kino": apply_liger_kernel_to_kino_qwen2,
+    "aero": apply_liger_kernel_to_aero,
+    "aero_omni": apply_liger_kernel_to_aero_omni,
 }
 
 

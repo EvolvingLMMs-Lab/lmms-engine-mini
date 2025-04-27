@@ -37,16 +37,17 @@ from transformers import (
     AutoModelForCausalLM,
     AutoProcessor,
     AutoTokenizer,
+    Qwen2_5OmniForConditionalGeneration,
     Qwen2AudioEncoder,
     Qwen2AudioForConditionalGeneration,
 )
 
-from lmms_engine.models.kino.configuration_kino import KinoConfig
-from lmms_engine.models.kino.modeling_kino import (
-    KinoForConditionalGeneration,
-    LlavaOnevisionAudioMultiModalProjector,
+from lmms_engine.models.aero.configuration_aero import AeroConfig
+from lmms_engine.models.aero.modeling_aero import (
+    PROJECTOR_MAP,
+    AeroForConditionalGeneration,
 )
-from lmms_engine.models.kino.processing_kino import KinoProcessor
+from lmms_engine.models.aero.processing_aero import AeroProcessor
 
 
 def load_image():
@@ -56,7 +57,7 @@ def load_image():
 
 
 def convert_llava_to_hf(
-    model_id, pytorch_dump_folder_path, repo_id, push_to_hub=False, with_out_init=False
+    model_id, pytorch_dump_folder_path, audio_model_id, with_out_init=False
 ):
     if not with_out_init:
         # load original config
@@ -79,36 +80,41 @@ def convert_llava_to_hf(
         video_token_id = tokenizer.convert_tokens_to_ids("<video>")
         audio_token_id = tokenizer.convert_tokens_to_ids("<|AUDIO|>")
 
-        qwen_vl_processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-7B-Instruct")
         audio_processor = AutoProcessor.from_pretrained("Qwen/Qwen2-Audio-7B-Instruct")
-        processor = KinoProcessor(
-            image_processor=qwen_vl_processor.image_processor,
+        processor = AeroProcessor(
             tokenizer=tokenizer,
-            video_processor=qwen_vl_processor.image_processor,
             audio_processor=audio_processor.feature_extractor,
-            num_image_tokens=None,
-            vision_feature_select_strategy="navit",
         )
 
-        config = KinoConfig(
+        if "Omni" in audio_model_id:
+            audio_model = Qwen2_5OmniForConditionalGeneration.from_pretrained(
+                audio_model_id,
+                torch_dtype="auto",
+                device_map="cuda:0",
+            )
+            audio_tower = audio_model.thinker.audio_tower
+            audio_config = audio_model.config.thinker_config.audio_config
+        else:
+            audio_model = Qwen2AudioForConditionalGeneration.from_pretrained(
+                audio_model_id,
+                torch_dtype="auto",
+                device_map="cuda:0",
+            )
+            audio_tower = audio_model.audio_tower
+            audio_config = audio_model.config.audio_config
+
+        config = AeroConfig(
             text_config=text_config,
-            image_token_index=image_token_id,
-            video_token_index=video_token_id,
             audio_token_index=audio_token_id,
+            audio_config=audio_config,
         )
 
         with init_empty_weights():
-            model = KinoForConditionalGeneration(config)
-
-        audio_model = Qwen2AudioForConditionalGeneration.from_pretrained(
-            "Qwen/Qwen2-Audio-7B-Instruct",
-            torch_dtype=torch.float16,
-            device_map="cuda:0",
-        )
+            model = AeroForConditionalGeneration(config)
         text_model = AutoModelForCausalLM.from_pretrained(
-            text_model_id, torch_dtype="float16", device_map="cuda:0"
+            text_model_id, torch_dtype="auto", device_map="cuda:0"
         )
-        audio_modal_projector = LlavaOnevisionAudioMultiModalProjector(config)
+        audio_modal_projector = PROJECTOR_MAP[model.audio_tower_type](config)
         std = (
             config.initializer_range
             if hasattr(config, "initializer_range")
@@ -117,7 +123,7 @@ def convert_llava_to_hf(
         audio_modal_projector.linear.weight.data.normal_(mean=0.0, std=std)
         audio_modal_projector.linear.bias.data.zero_()
         model.audio_modal_projector = audio_modal_projector
-        model.audio_tower = audio_model.audio_tower
+        model.audio_tower = audio_tower
         model.language_model = text_model
         model.eval()
 
@@ -178,10 +184,6 @@ def convert_llava_to_hf(
         torch.cuda.empty_cache()
         gc.collect()
 
-    if push_to_hub:
-        model.push_to_hub(repo_id)
-        processor.push_to_hub(repo_id)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -192,20 +194,16 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
+        "--audio_model_id",
+        help="Hub location of the audio model to convert",
+        default="Qwen/Qwen2-Audio-7B-Instruct",
+        required=False,
+    )
+    parser.add_argument(
         "--pytorch_dump_folder_path",
         type=str,
         required=True,
         help="Path to the output PyTorch model directory.",
-    )
-    parser.add_argument(
-        "--repo_id",
-        type=str,
-        help="The repo id to push the mode",
-    )
-    parser.add_argument(
-        "--push_to_hub",
-        action="store_true",
-        help="Whether or not to push the converted model to the 🤗 hub.",
     )
     parser.add_argument(
         "--with_out_init",
@@ -217,7 +215,6 @@ if __name__ == "__main__":
     convert_llava_to_hf(
         args.model_id,
         args.pytorch_dump_folder_path,
-        args.repo_id,
-        args.push_to_hub,
+        args.audio_model_id,
         args.with_out_init,
     )

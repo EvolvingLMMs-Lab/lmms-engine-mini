@@ -2,11 +2,12 @@ import json
 import math
 from io import BytesIO
 from multiprocessing import Pool, cpu_count
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Literal, Tuple, Union
 
 import jsonlines
 import numpy as np
 import yaml
+from datasets import Dataset, concatenate_datasets, load_from_disk
 from librosa import resample
 from tqdm import tqdm
 
@@ -47,9 +48,19 @@ class DataUtilities:
             raise NotImplementedError
 
     @staticmethod
+    def maybe_load_by_type(
+        path: str, data_type: Literal["json", "jsonl", "arrow"]
+    ) -> Union[List[Dict[str, List]], Dataset]:
+        if data_type == "arrow":
+            dataset = load_from_disk(path)
+            return dataset
+        else:
+            return DataUtilities.maybe_load_json_or_jsonlines(path, data_type)
+
+    @staticmethod
     def wrap_func(args):
         path, data_type = args
-        return DataUtilities.maybe_load_json_or_jsonlines(path, data_type)
+        return DataUtilities.maybe_load_by_type(path, data_type)
 
     @staticmethod
     def load_yaml(path: str) -> Tuple[List[Dict[str, List]], List[str]]:
@@ -61,11 +72,31 @@ class DataUtilities:
             data_paths = [dataset.get("json_path") for dataset in datasets]
             data_folders = [dataset.get("data_folder") for dataset in datasets]
             data_types = [dataset.get("data_type") for dataset in datasets]
+            force_arrow = any([d_type == "arrow" for d_type in data_types])
             with Pool(cpu_count()) as p:
                 Logging.info("Loading data with multiprocess...")
                 nested_data_list = list(
                     p.imap(DataUtilities.wrap_func, zip(data_paths, data_types))
                 )
+
+            if force_arrow:
+                Logging.info(
+                    "Detecting arrow dataset, force everything to be loaded in arrow..."
+                )
+                for data, data_folder, data_path in zip(
+                    nested_data_list, data_folders, data_paths
+                ):
+                    Logging.info(f"Data : {data_path}")
+                    if isinstance(data, Dataset):
+                        data_list.append(data)
+                    else:
+                        Logging.info(f"Convert to arrow dataset")
+                        data = Dataset.from_list(data)
+                        data_list.append(data)
+                    Logging.info(f"Dataset size: {len(data)}")
+                    data_folder_list.extend([data_folder] * len(data))
+                    data_list = concatenate_datasets(data_list)
+                return data_list, data_folder_list
 
             for data, data_folder, data_path in zip(
                 nested_data_list, data_folders, data_paths

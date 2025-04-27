@@ -36,9 +36,10 @@ class TrainUtilities:
                         {"type": "video", "video_url": content["video_url"]["url"]}
                     )
                 else:
-                    new_message["content"].append(
-                        {"type": "text", "text": content["text"]}
-                    )
+                    new_content = {"type": "text", "text": content["text"]}
+                    if "audio_text" in content:
+                        new_content["audio_text"] = content["audio_text"]
+                    new_message["content"].append(new_content)
             hf_messages.append(new_message)
 
         return hf_messages

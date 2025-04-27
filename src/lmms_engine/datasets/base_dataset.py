@@ -7,9 +7,12 @@ from typing import Dict, List, Tuple
 import librosa
 import numpy as np
 import torch
-from datasets import Sequence, load_dataset
+import torch.distributed as dist
+from datasets import Dataset as HFDataset
+from datasets import Sequence, load_dataset, load_from_disk
 from PIL import Image, PngImagePlugin
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 from ..utils import Logging
 from ..utils.data_utils import DataUtilities
@@ -33,6 +36,8 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             self.data_list = DataUtilities.load_json(self.config.dataset_path)
         elif self.config.dataset_format == "jsonl":
             self.data_list = DataUtilities.load_jsonlines(self.config.dataset_path)
+        elif self.config.dataset_format == "arrow":
+            self.data_list = load_from_disk(self.config.dataset_path)
         elif self.config.dataset_format == "hf_dataset":
             self.data_list = load_dataset(self.config.dataset_path, split="train")
             self.data_list_no_image = deepcopy(self.data_list)
@@ -45,17 +50,27 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             raise NotImplementedError
 
         if self.config.shuffle:
+            Logging.info("Shuffle Dataset ...")
             data_index = [i for i in range(len(self.data_list))]
             random.shuffle(data_index)
-            self.data_list = [self.data_list[i] for i in data_index]
+            if isinstance(self.data_list, HFDataset):
+                self.data_list = self.data_list.select(data_index)
+            else:
+                self.data_list = [self.data_list[i] for i in data_index]
             if self.config.dataset_format == "yaml":
                 self.data_folder = [self.data_folder[i] for i in data_index]
 
-        self.data_lengths = (
-            self._estimate_data_tokens(self.data_list)
-            if self.config.dataset_format != "hf_dataset"
-            else self.data_list_no_image
-        )
+        if not isinstance(self.data_list, HFDataset):
+            self.data_lengths = (
+                self._estimate_data_tokens(self.data_list)
+                if self.config.dataset_format != "hf_dataset"
+                else self.data_list_no_image
+            )
+        else:
+            self.data_lengths = torch.randint(
+                low=100, high=2000, size=(len(self.data_list),)
+            )
+            self.data_lengths = self.data_lengths.tolist()
         if self.config.packing:
             if self.config.packing_strategy is None:
                 raise ValueError("Packing strategy is not specified.")
@@ -77,6 +92,11 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
 
     def _estimate_data_tokens(self, data_list):
         lengths = []
+        pbar = tqdm(
+            total=len(data_list),
+            desc="Estimating data tokens...",
+            disable=dist.get_rank() != 0,
+        )
         for data in data_list:
             if "chosen" in data or "rejected" in data:
                 raise ValueError("Preference learning is not supported for now.")
@@ -85,28 +105,34 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             for message in messages:
                 content = message["content"]
                 for cont in content:
+                    precomputed_tokens = getattr(cont, "precomputed_tokens", None)
+                    # In case arrow where every place has a field
                     if cont["type"] == "image_url":
-                        if "precomputed_tokens" in cont:
-                            cur_len += cont["precomputed_tokens"]
+                        if precomputed_tokens is not None:
+                            cur_len += precomputed_tokens
                         else:
                             cur_len += 2000
                     elif cont["type"] == "audio_url":
-                        if "precomputed_tokens" in cont:
-                            cur_len += cont["precomputed_tokens"]
+                        if precomputed_tokens is not None:
+                            cur_len += precomputed_tokens
                         else:
                             cur_len += 750
                     elif cont["type"] == "video_url":
-                        if "precomputed_tokens" in cont:
-                            cur_len += cont["precomputed_tokens"]
+                        if precomputed_tokens is not None:
+                            cur_len += precomputed_tokens
                         else:
                             cur_len += 5000
                     elif cont["type"] == "text":
                         cur_len += len(cont["text"].split()) * 1.5
+                        if "audio_text" in cont:
+                            cur_len = max(cur_len, len(cont["text"]))
                     else:
                         raise TypeError(
                             f"Encountered invalid content type {cont['type']}"
                         )
             lengths.append(cur_len)
+            pbar.update(1)
+        pbar.close()
         return lengths
 
     def _pack_by_first_fit(self, lengths: List[int], packing_length: int):
@@ -221,6 +247,7 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
         if (
             self.config.dataset_format == "json"
             or self.config.dataset_format == "jsonl"
+            or self.config.dataset_format == "arrow"
         ):
             data_dict = self.load_from_json(self.data_list[index])
         elif self.config.dataset_format == "yaml":
