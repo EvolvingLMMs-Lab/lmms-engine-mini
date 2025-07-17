@@ -25,13 +25,28 @@ except:
     )
 
 import transformers
-from transformers import PreTrainedModel
+from transformers import (
+    PreTrainedModel,
+    Qwen2_5_VLForConditionalGeneration,
+    Qwen2_5_VLModel,
+    Qwen2_5_VLTextModel,
+)
+from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
+    Qwen2_5_VisionTransformerPretrainedModel,
+)
 
 transformer_version = version.parse(transformers.__version__)
 SUPPORTED_TRANSFORMER_VERSION = "4.46.1"
 TRANSFORMER_DEPRECATION_WARNING = "Support for transformers versions < 4.46.1 will soon be discontinued due to issues with incorrect gradient accumulation. \n Please consider upgrading to avoid potential issues. See details: https://github.com/huggingface/transformers/pull/34191"
 
 from ...utils.logging_utils import Logging
+
+try:
+    import peft
+
+    PEFT_AVAILABLE = True
+except ImportError:
+    PEFT_AVAILABLE = False
 
 
 def _bind_method_to_module(module, method_name: str, new_method: Callable):
@@ -40,16 +55,54 @@ def _bind_method_to_module(module, method_name: str, new_method: Callable):
 
 
 def _patch_rms_norm_module(
-    module, offset=0.0, eps=1e-6, casting_mode="llama", in_place=True
+    module, offset=0.0, eps=1e-6, casting_mode="llama", in_place=True, row_mode=None
 ):
-    module.offset = offset
-    module.casting_mode = casting_mode
-    module.variance_epsilon = (
-        getattr(module, "variance_epsilon", None) or getattr(module, "eps", None) or eps
-    )
-    module.in_place = in_place
-    _bind_method_to_module(module, "forward", LigerRMSNorm.forward)
-    _bind_method_to_module(module, "extra_repr", LigerRMSNorm.extra_repr)
+    # Check if the module is a PEFT ModulesToSaveWrapper
+    # If it is, we need to patch the modules_to_save.default and original_modules
+    if PEFT_AVAILABLE and isinstance(module, peft.utils.other.ModulesToSaveWrapper):
+        module.modules_to_save.default.offset = offset
+        module.modules_to_save.default.casting_mode = casting_mode
+        module.modules_to_save.default.variance_epsilon = (
+            getattr(module, "variance_epsilon", None)
+            or getattr(module, "eps", None)
+            or eps
+        )
+        module.modules_to_save.default.in_place = in_place
+        module.modules_to_save.default.row_mode = row_mode
+        module.original_module.offset = offset
+        module.original_module.casting_mode = casting_mode
+        module.original_module.variance_epsilon = (
+            getattr(module, "variance_epsilon", None)
+            or getattr(module, "eps", None)
+            or eps
+        )
+        module.original_module.in_place = in_place
+        module.original_module.row_mode = row_mode
+        _bind_method_to_module(
+            module.modules_to_save.default, "forward", LigerRMSNorm.forward
+        )
+        _bind_method_to_module(
+            module.modules_to_save.default, "extra_repr", LigerRMSNorm.extra_repr
+        )
+        _bind_method_to_module(module.original_module, "forward", LigerRMSNorm.forward)
+        _bind_method_to_module(
+            module.original_module, "extra_repr", LigerRMSNorm.extra_repr
+        )
+        module.modules_to_save.default.__class__.__name__ = LigerRMSNorm.__name__
+        module.original_module.__class__.__name__ = LigerRMSNorm.__name__
+    else:
+        module.offset = offset
+        module.casting_mode = casting_mode
+        module.variance_epsilon = (
+            getattr(module, "variance_epsilon", None)
+            or getattr(module, "eps", None)
+            or eps
+        )
+        module.in_place = in_place
+        module.row_mode = row_mode
+        _bind_method_to_module(module, "forward", LigerRMSNorm.forward)
+        _bind_method_to_module(module, "extra_repr", LigerRMSNorm.extra_repr)
+        module.__class__.__name__ = LigerRMSNorm.__name__
 
 
 def _patch_layer_norm_module(module, eps=1e-6):
@@ -105,17 +158,6 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     from ..qwen2_5_vl_audio import modeling_qwen2_5_vl as kino_modeling_qwen2_5_vl
     from .qwen2_5_vl_liger import lce_forward as qwen2_5_vl_lce_forward
 
-    if use_rmpad:
-
-        def wrap_forward(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(use_rmpad=use_rmpad, *args, **kwargs)
-
-            return wrapper
-
-        qwen2_5_vl_lce_forward = wrap_forward(qwen2_5_vl_lce_forward)
-
     if rope:
         modeling_qwen2_5_vl.apply_multimodal_rotary_pos_emb = (
             liger_multimodal_rotary_pos_emb
@@ -128,6 +170,9 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         kino_modeling_qwen2_5_vl.KinoQwen2_5_VLForConditionalGeneration.forward = (
             qwen2_5_vl_lce_forward
         )
+        modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = (
+            qwen2_5_vl_lce_forward
+        )
     if swiglu:
         modeling_qwen2_5_vl.Qwen2MLP = LigerSwiGLUMLP
 
@@ -136,40 +181,56 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
         from .rmpad.qwen2_5_vl_ops import (
             decoder_layer_forward as qwen2_ops_decoder_layer_forward,
         )
-        from .rmpad.qwen2_5_vl_ops import model_forward as qwen2_ops_model_forward
+        from .rmpad.qwen2_5_vl_ops import (
+            text_model_forward as qwen2_ops_text_model_forward,
+        )
+        from .rmpad.qwen2_5_vl_ops import vl_model_forward as qwen2_ops_vl_model_forward
 
-        modeling_qwen2_5_vl.Qwen2_5_VLModel.forward = qwen2_ops_model_forward
+        modeling_qwen2_5_vl.Qwen2_5_VLModel.forward = qwen2_ops_vl_model_forward
+        modeling_qwen2_5_vl.Qwen2_5_VLTextModel.forward = qwen2_ops_text_model_forward
         modeling_qwen2_5_vl.Qwen2_5_VLDecoderLayer.forward = (
             qwen2_ops_decoder_layer_forward
         )
-        modeling_qwen2_5_vl.Qwen2_5_VLFlashAttention2.forward = qwen2_ops_attn_forward
+        modeling_qwen2_5_vl.Qwen2_5_VLAttention.forward = qwen2_ops_attn_forward
     apply_liger_kernel_to_qwen2_audio(use_rmpad=use_rmpad)
 
-    # TODO : Add binding to existing models for rmpad
     if model is not None:
         # The model instance already exists, so we need to additionally patch the
         # instance variables that reference already-instantiated modules
+        if isinstance(model, Qwen2_5_VLForConditionalGeneration):
+            text_model: Qwen2_5_VLTextModel = model.model.language_model
+            vision_model: Qwen2_5_VisionTransformerPretrainedModel = model.model.visual
+        elif isinstance(model, Qwen2_5_VLModel):
+            # Note: language_model and visual properties can be accessed throught conditional class for BC.
+            # Not sure if it is subject to changes in the future.
+            # Reference: https://github.com/huggingface/transformers/blob/v4.52.4/src/transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py#L1823
+            text_model: Qwen2_5_VLTextModel = model.language_model
+            vision_model: Qwen2_5_VisionTransformerPretrainedModel = model.visual
+        elif isinstance(model, Qwen2_5_VLTextModel):
+            text_model: Qwen2_5_VLTextModel = model
+            vision_model = None
+        else:
+            # Note: Currently there's no support for patching vision model only. Feel free to raise an issue if needed.
+            raise TypeError(
+                f"Unsupported Qwen2VL model type. `model` must be `Qwen2VLForConditionalGeneration`, `Qwen2VLModel` or `Qwen2VLTextModel`. Got: {type(model)}"
+            )
 
-        # get the base model from the model instance
-        base_model: Qwen2_5_VLModel = getattr(model, model.base_model_prefix, model)
-
-        if hasattr(model, "visual"):
+        if vision_model is not None:
             # Patch Qwen2_5_VisionTransformerPretrainedModel
             for vision_block in model.visual.blocks:
                 if rms_norm:
                     _patch_rms_norm_module(vision_block.norm1)
                     _patch_rms_norm_module(vision_block.norm2)
 
-        if rms_norm:
-            _patch_rms_norm_module(base_model.norm)
-        for decoder_layer in base_model.layers:
-            if swiglu:
-                _bind_method_to_module(
-                    decoder_layer.mlp, "forward", LigerSwiGLUMLP.forward
-                )
+        if text_model is not None:
             if rms_norm:
-                _patch_rms_norm_module(decoder_layer.input_layernorm)
-                _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
+                _patch_rms_norm_module(text_model.norm)
+            for decoder_layer in text_model.layers:
+                if swiglu:
+                    _patch_swiglu_module(decoder_layer.mlp, LigerSwiGLUMLP)
+                if rms_norm:
+                    _patch_rms_norm_module(decoder_layer.input_layernorm)
+                    _patch_rms_norm_module(decoder_layer.post_attention_layernorm)
 
 
 def apply_liger_kernel_to_aero(
@@ -297,8 +358,8 @@ def apply_liger_kernel_to_qwen2_audio(
 ):
     from transformers import Qwen2AudioEncoder
     from transformers.models.qwen2_audio.modeling_qwen2_audio import (
+        Qwen2AudioAttention,
         Qwen2AudioEncoderLayer,
-        Qwen2AudioFlashAttention2,
     )
 
     if use_rmpad:
@@ -314,13 +375,14 @@ def apply_liger_kernel_to_qwen2_audio(
 
         Qwen2AudioEncoder.forward = qwen2_audio_encoder_forward
         Qwen2AudioEncoderLayer.forward = qwen2_audio_encoder_layer_forward
-        Qwen2AudioFlashAttention2.forward = qwen2_audio_flash_attn_forward
+        Qwen2AudioAttention.forward = qwen2_audio_flash_attn_forward
 
 
 CUSTOM_MODEL_TYPE_TO_APPLY_LIGER_FN = {
     "kino_qwen2_5_vl": apply_liger_kernel_to_kino_qwen2_5_vl,
     "aero": apply_liger_kernel_to_aero,
     "aero_omni": apply_liger_kernel_to_aero_omni,
+    "qwen2_5_vl": apply_liger_kernel_to_kino_qwen2_5_vl,
 }
 
 

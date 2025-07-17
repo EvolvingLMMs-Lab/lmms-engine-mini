@@ -24,7 +24,7 @@ license = { text = "MIT" }
 dependencies = [
     "datasets",
     "hf_transfer",
-    "transformers@git+https://github.com/huggingface/transformers@v4.51.3-Qwen2.5-Omni-preview",
+    "transformers",
     "accelerate",
     "pillow",
     "peft",

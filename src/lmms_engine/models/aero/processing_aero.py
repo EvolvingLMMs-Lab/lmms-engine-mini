@@ -22,11 +22,12 @@ from typing import List, Optional, Union
 
 import numpy as np
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput, VideoInput
+from transformers.image_utils import ImageInput
 from transformers.models.auto import AutoFeatureExtractor
 from transformers.processing_utils import ProcessingKwargs, ProcessorMixin, Unpack
 from transformers.tokenization_utils_base import PreTokenizedInput, TextInput
 from transformers.utils import logging
+from transformers.video_utils import VideoInput
 
 logger = logging.get_logger(__name__)
 

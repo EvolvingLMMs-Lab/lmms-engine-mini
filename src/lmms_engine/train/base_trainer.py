@@ -36,7 +36,7 @@ class BaseTrainer(ABC):
         if self.model_config.pretrain_mm_mlp_adapter is not None:
             self._load_mm_projector()
         if self.config.trainer_args.use_liger_kernel:
-            self._apply_linger_kernel()
+            self._apply_liger_kernel()
             # Set to False as we already apply the liger kernel by ourselves
             self.config.trainer_args.use_liger_kernel = False
 
@@ -55,7 +55,7 @@ class BaseTrainer(ABC):
                 Logging.info(f"Overwrite {key} to {value}")
         return model
 
-    def _apply_linger_kernel(self):
+    def _apply_liger_kernel(self):
         kwargs = {"use_rmpad": self.config.trainer_args.use_rmpad}
         try:
             from liger_kernel.transformers import _apply_liger_kernel_to_instance

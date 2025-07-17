@@ -7,7 +7,6 @@ from .vision_audio import (
     AeroOmniDataProcessor,
     KinoDataProcessor,
     KinoQwen2_5_DataProcessor,
-    Mistral3AudioDataProcessor,
 )
 
 
@@ -62,8 +61,6 @@ class ProcessorFactory:
             return KinoDataProcessor(processor_config)
         elif processor_config.processor_type == "kino_qwen2_5":
             return KinoQwen2_5_DataProcessor(processor_config)
-        elif processor_config.processor_type == "mistral3_audio":
-            return Mistral3AudioDataProcessor(processor_config)
         elif processor_config.processor_type == "aero_omni":
             return AeroOmniDataProcessor(processor_config)
         else:

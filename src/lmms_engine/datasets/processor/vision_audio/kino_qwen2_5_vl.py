@@ -140,8 +140,6 @@ class KinoQwen2_5_DataProcessor(KinoDataProcessor):
         if videos is not None:
             for key, value in videos_inputs.items():
                 inputs[key] = value
-        input_mode = self.get_input_mode(audios, images, videos)
-        inputs["input_mode"] = input_mode
 
         return inputs
 

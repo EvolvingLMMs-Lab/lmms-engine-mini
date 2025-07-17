@@ -5,7 +5,6 @@ MODEL_REGISTRY = {
     "aero": "AeroForConditionalGeneration",
     "aero_omni": "AeroOmniForConditionalGeneration",
     "qwen2_5_vl_audio": "KinoQwen2_5_VLForConditionalGeneration",
-    "mistral3_audio": "Mistral3AudioForConditionalGeneration",
 }
 
 

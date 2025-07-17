@@ -39,6 +39,8 @@ class VisionSFTDataset(BaseDataset):
             ]
         else:
             images = [Image.open(image) for image in images_list]
+        if len(images) == 0:
+            images = None
         inputs = self.processor.process(images=images, hf_messages=hf_messages)
         return inputs
 
