@@ -1,4 +1,6 @@
+import functools
 import importlib.metadata
+import inspect
 import os
 import time
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -7,6 +9,9 @@ import datasets
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from accelerate import Accelerator, FullyShardedDataParallelPlugin
+from accelerate.state import AcceleratorState
+from accelerate.utils import DataLoaderConfiguration
 from packaging import version
 from peft import PeftModel
 from torch.utils.data import DataLoader, Dataset, RandomSampler, Sampler
@@ -15,6 +20,7 @@ from transformers.trainer import logger
 from transformers.trainer_pt_utils import LengthGroupedSampler, RandomSampler
 from transformers.trainer_utils import has_length
 from transformers.utils import (
+    is_accelerate_available,
     is_datasets_available,
     is_peft_available,
     is_sagemaker_mp_enabled,
@@ -39,6 +45,103 @@ TRAINER_STATE_NAME = "trainer_state.json"
 
 
 class LLaVATrainer(Trainer):
+    def create_accelerator_and_postprocess(self):
+        if self.args.fsdp2:
+            if self.args.bf16:
+                torch_dtype = torch.bfloat16
+            elif self.args.fp16:
+                torch_dtype = torch.float16
+            else:
+                torch_dtype = torch.float32
+            fsdp_plugin = FullyShardedDataParallelPlugin(
+                fsdp_version=2,
+                mixed_precision_policy={
+                    "param_dtype": torch_dtype,
+                    "reduce_dtype": torch_dtype,
+                    "output_dtype": torch_dtype,
+                },
+                auto_wrap_policy="transformer_based_wrap",
+                transformer_cls_names_to_wrap=self.args.transformer_cls_names_to_wrap,
+                activation_checkpointing=self.args.gradient_checkpointing,
+            )
+            accelerator_config = self.args.accelerator_config.to_dict()
+            dataloader_params = [
+                "split_batches",
+                "dispatch_batches",
+                "even_batches",
+                "use_seedable_sampler",
+            ]
+            dataloader_config = DataLoaderConfiguration(
+                **{param: accelerator_config.pop(param) for param in dataloader_params}
+            )
+            dataloader_config.data_seed = self.args.data_seed
+            non_blocking = accelerator_config.pop("non_blocking")
+            if non_blocking and not self.args.dataloader_pin_memory:
+                logger.warning(
+                    "`non_blocking` is enabled but `dataloader_pin_memory` is not. For the best performance, it's recommended to enable both."
+                )
+            dataloader_config.non_blocking = non_blocking
+            # this would have been updated above, no need for it anymore
+            accelerator_config.pop("gradient_accumulation_kwargs")
+
+            args = {"fsdp_plugin": fsdp_plugin}
+            args["dataloader_config"] = dataloader_config
+            # create accelerator object
+            self.accelerator = Accelerator(**args)
+            # some Trainer classes need to use `gather` instead of `gather_for_metrics`, thus we store a flag
+            self.gather_function = self.accelerator.gather_for_metrics
+
+            if (
+                "use_gather_object"
+                in inspect.signature(self.gather_function).parameters.keys()
+            ):
+                self.gather_function = functools.partial(
+                    self.gather_function,
+                    use_gather_object=self.args.eval_use_gather_object,
+                )
+
+            self.is_deepspeed_enabled = (
+                getattr(self.accelerator.state, "deepspeed_plugin", None) is not None
+            )
+            self.is_fsdp_enabled = (
+                getattr(self.accelerator.state, "fsdp_plugin", None) is not None
+            )
+            self.is_tp_enabled = (
+                getattr(self.accelerator.state, "torch_tp_plugin", None) is not None
+            )
+
+            # `save_only_model` can't be used with DeepSpeed/FSDP along with `load_best_model_at_end`
+            if (
+                self.args.save_only_model
+                and (self.is_deepspeed_enabled or self.is_fsdp_enabled)
+                and self.args.load_best_model_at_end
+            ):
+                wrapper = "DeepSpeed" if self.is_deepspeed_enabled else "FSDP"
+                raise ValueError(
+                    f"{wrapper} can't be used with `save_only_model` along with `load_best_model_at_end`."
+                )
+
+            # `auto_find_batch_size` isn't supported yet with DeepSpeed Zero-3
+            if (
+                self.is_deepspeed_enabled
+                and self.accelerator.state.deepspeed_plugin.zero_stage == 3
+                and self.args.auto_find_batch_size
+            ):
+                raise ValueError(
+                    "`auto_find_batch_size` isn't supported yet with DeepSpeed Zero-3. Please consider using Zero-2, Zero-1, or FSDP"
+                )
+            if (
+                self.args.save_only_model
+                and self.is_fsdp_enabled
+                and "SHARDED_STATE_DICT"
+                in str(self.accelerator.state.fsdp_plugin.state_dict_type)
+            ):
+                raise ValueError(
+                    "save_only_model option is not compatible with FSDP state dict type 'SHARDED_STATE_DICT'"
+                )
+        else:
+            return super().create_accelerator_and_postprocess()
+
     def _get_train_sampler(self, train_dataset: Optional[Dataset] = None):
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None
