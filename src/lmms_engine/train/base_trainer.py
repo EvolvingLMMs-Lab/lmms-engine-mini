@@ -41,7 +41,7 @@ class BaseTrainer(ABC):
             self.config.trainer_args.use_liger_kernel = False
 
     def _build_model(self):
-        model_class = ModelFactory.create_model(self.model_config.model_class)
+        model_class = ModelFactory.create_model(self.model_config.model_name_or_path)
         model = model_class.from_pretrained(
             self.model_config.model_name_or_path,
             attn_implementation=self.model_config.attn_implementation,
