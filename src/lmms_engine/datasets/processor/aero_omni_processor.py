@@ -7,10 +7,12 @@ from PIL import Image
 from lmms_engine.models.aero.processing_aero import AeroProcessorKwargs
 from lmms_engine.models.aero_omni import AeroOmniProcessor
 
-from .kino_processor import KinoDataProcessor
+from .aero_processor import AeroDataProcessor
+from .factory import register_processor
 
 
-class AeroOmniDataProcessor(KinoDataProcessor):
+@register_processor("aero_omni")
+class AeroOmniDataProcessor(AeroDataProcessor):
     def _build_processor(self) -> AeroOmniProcessor:
         return AeroOmniProcessor.from_pretrained(self.config.processor_name)
 

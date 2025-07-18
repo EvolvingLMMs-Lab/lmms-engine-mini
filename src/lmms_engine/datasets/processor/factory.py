@@ -2,12 +2,19 @@ from typing import Union, overload
 
 from ...protocol import Processable
 from .config import ProcessorConfig
-from .vision import LLaVADataProcessor, Qwen2_5_VLDataProcessor, Qwen2VLDataProcessor
-from .vision_audio import (
-    AeroOmniDataProcessor,
-    KinoDataProcessor,
-    KinoQwen2_5_DataProcessor,
-)
+
+PROCESSOR_MAPPING = {}
+
+
+# A decorator class to register processors
+def register_processor(processor_type: str):
+    def decorator(cls):
+        if processor_type in PROCESSOR_MAPPING:
+            raise ValueError(f"Processor type {processor_type} is already registered.")
+        PROCESSOR_MAPPING[processor_type] = cls
+        return cls
+
+    return decorator
 
 
 class ProcessorFactory:
@@ -23,47 +30,10 @@ class ProcessorFactory:
 
     @staticmethod
     def create_processor(processor_config: Union[ProcessorConfig, dict]) -> Processable:
-        if isinstance(processor_config, dict):
-            processor_config = ProcessorConfig(**processor_config)
-
-        if processor_config.processor_modality == "vision":
-            return ProcessorFactory.create_vision_processor(processor_config)
-        elif processor_config.processor_modality == "audio":
-            return ProcessorFactory.create_audio_processor(processor_config)
-        elif processor_config.processor_modality == "vision_audio":
-            return ProcessorFactory.create_vision_audio_processor(processor_config)
-        else:
+        if processor_config.processor_type not in PROCESSOR_MAPPING:
             raise NotImplementedError(
-                f"Processor type {processor_config.processor_type} not implemented"
+                f"Processor {processor_config.processor_type} not implemented"
+                f"Available processors: {list(PROCESSOR_MAPPING.keys())}"
             )
-        pass
-
-    @staticmethod
-    def create_vision_processor(processor_config: ProcessorConfig) -> Processable:
-        if processor_config.processor_type == "qwen2_vl":
-            return Qwen2VLDataProcessor(processor_config)
-        elif processor_config.processor_type == "llava":
-            return LLaVADataProcessor(processor_config)
-        elif processor_config.processor_type == "qwen2_5_vl":
-            return Qwen2_5_VLDataProcessor(processor_config)
-        else:
-            raise NotImplementedError(
-                f"Processor {processor_config.processor_name} not implemented"
-            )
-
-    @staticmethod
-    def create_audio_processor(processor_config: ProcessorConfig) -> Processable:
-        pass
-
-    @staticmethod
-    def create_vision_audio_processor(processor_config: ProcessorConfig) -> Processable:
-        if processor_config.processor_type == "kino":
-            return KinoDataProcessor(processor_config)
-        elif processor_config.processor_type == "kino_qwen2_5":
-            return KinoQwen2_5_DataProcessor(processor_config)
-        elif processor_config.processor_type == "aero_omni":
-            return AeroOmniDataProcessor(processor_config)
-        else:
-            raise NotImplementedError(
-                f"Processor {processor_config.processor_name} not implemented"
-            )
+        processor_cls = PROCESSOR_MAPPING[processor_config.processor_type]
+        return processor_cls(processor_config)

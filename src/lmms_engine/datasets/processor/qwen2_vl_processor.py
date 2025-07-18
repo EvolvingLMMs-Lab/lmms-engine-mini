@@ -5,9 +5,11 @@ from PIL import Image
 from transformers import Qwen2VLProcessor
 from transformers.models.qwen2_vl.processing_qwen2_vl import Qwen2VLProcessorKwargs
 
-from ..config import ProcessorConfig
+from .config import ProcessorConfig
+from .factory import register_processor
 
 
+@register_processor("qwen2_vl")
 class Qwen2VLDataProcessor:
     def __init__(self, config: ProcessorConfig) -> None:
         self.config = config

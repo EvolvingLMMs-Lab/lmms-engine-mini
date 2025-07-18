@@ -4,11 +4,13 @@ import numpy as np
 import torch
 from PIL import Image
 
-from ....models.aero.processing_aero import AeroProcessor, AeroProcessorKwargs
-from ..config import ProcessorConfig
+from ...models.aero.processing_aero import AeroProcessor, AeroProcessorKwargs
+from .config import ProcessorConfig
+from .factory import register_processor
 
 
-class KinoDataProcessor:
+@register_processor("aero")
+class AeroDataProcessor:
     def __init__(self, config: ProcessorConfig) -> None:
         self.config = config
 

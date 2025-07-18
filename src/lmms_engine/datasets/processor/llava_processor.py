@@ -7,9 +7,11 @@ from transformers.models.llava_onevision.processing_llava_onevision import (
     LlavaOnevisionProcessorKwargs,
 )
 
-from ..config import ProcessorConfig
+from .config import ProcessorConfig
+from .factory import register_processor
 
 
+@register_processor("llava")
 class LLaVADataProcessor:
     def __init__(self, config: ProcessorConfig) -> None:
         self.config = config

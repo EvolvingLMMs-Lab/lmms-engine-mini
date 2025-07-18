@@ -3,20 +3,16 @@ from typing import List, Optional
 import numpy as np
 import torch
 from PIL import Image
+from transformers.models.qwen2_5_vl.processing_qwen2_5_vl import (
+    Qwen2_5_VLProcessorKwargs,
+)
 
-from ....models.qwen2_5_vl_audio import KinoQwen2_5_VLProcessor
-from ....models.qwen2_5_vl_audio.processing_qwen2_5_vl import Qwen2_5_VLProcessorKwargs
-from .kino_processor import KinoDataProcessor
+from .aero_processor import AeroDataProcessor
 
 
-class KinoQwen2_5_DataProcessor(KinoDataProcessor):
+class BaseQwen2_5_DataProcessor(AeroDataProcessor):
     def _build_processor(self):
-        processor = KinoQwen2_5_VLProcessor.from_pretrained(self.config.processor_name)
-        if self.config.max_pixels:
-            processor.image_processor.max_pixels = self.config.max_pixels
-        if self.config.min_pixels:
-            processor.image_processor.min_pixels = self.config.min_pixels
-        return processor
+        raise NotImplementedError("This method should be implemented in subclasses.")
 
     def process(
         self,
