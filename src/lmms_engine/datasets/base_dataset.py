@@ -2,6 +2,7 @@ import os
 import random
 from abc import abstractmethod
 from copy import deepcopy
+from multiprocessing import cpu_count
 from typing import Dict, List, Tuple
 
 import librosa
@@ -30,6 +31,40 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
         self.processor_config = config.processor_config
         if isinstance(self.processor_config, dict):
             self.processor_config = ProcessorConfig(**self.processor_config)
+
+    def filter_overlong(self):
+        if self.config.packing:
+            Logging.info(
+                f"Filter overlong data, max length: {self.config.packing_length}"
+            )
+            original_length = len(self.data_list)
+            seq_len = self.config.packing_length
+            overlong_indices = [
+                i for i, length in enumerate(self.data_lengths) if length > seq_len
+            ]
+            if isinstance(self.data_list, HFDataset):
+                self.data_list = self.data_list.select(
+                    [i for i in range(len(self.data_list)) if i not in overlong_indices]
+                )
+            else:
+                self.data_list = [
+                    self.data_list[i]
+                    for i in range(len(self.data_list))
+                    if i not in overlong_indices
+                ]
+            self.data_folder = [
+                self.data_folder[i]
+                for i in range(len(self.data_folder))
+                if i not in overlong_indices
+            ]
+            self.data_lengths = [
+                length
+                for i, length in enumerate(self.data_lengths)
+                if i not in overlong_indices
+            ]
+            Logging.info(
+                f"Filter overlong data done, original length: {original_length}, new length: {len(self.data_list)}"
+            )
 
     def _build_from_config(self):
         if self.config.dataset_format == "json":
@@ -60,18 +95,19 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             if self.config.dataset_format == "yaml":
                 self.data_folder = [self.data_folder[i] for i in data_index]
 
-        if not isinstance(self.data_list, HFDataset):
+        if isinstance(self.data_list, HFDataset):
+            self.data_lengths = self.data_list.map(
+                lambda x: {"length": self.estimate_data_tokens_per_row(x)},
+                num_proc=cpu_count() // 2,
+            ).select_columns("length")["length"]
+        else:
             self.data_lengths = (
                 self._estimate_data_tokens(self.data_list)
                 if self.config.dataset_format != "hf_dataset"
                 else self.data_list_no_image
             )
-        else:
-            self.data_lengths = torch.randint(
-                low=100, high=2000, size=(len(self.data_list),)
-            )
-            self.data_lengths = self.data_lengths.tolist()
         if self.config.packing:
+            self.filter_overlong()
             if self.config.packing_strategy is None:
                 raise ValueError("Packing strategy is not specified.")
             packing_length = self.config.packing_length
@@ -90,6 +126,39 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
                 f"Before packing : {len(self.data_list)}, After packing : {len(self.packing_index)}"
             )
 
+    def estimate_data_tokens_per_row(self, row):
+        if "chosen" in row or "rejected" in row:
+            raise ValueError("Preference learning is not supported for now.")
+        messages = row["messages"]
+        cur_len = 0
+        for message in messages:
+            content = message["content"]
+            for cont in content:
+                precomputed_tokens = getattr(cont, "precomputed_tokens", None)
+                # In case arrow where every place has a field
+                if cont["type"] == "image_url":
+                    if precomputed_tokens is not None:
+                        cur_len += precomputed_tokens
+                    else:
+                        cur_len += 2000
+                elif cont["type"] == "audio_url":
+                    if precomputed_tokens is not None:
+                        cur_len += precomputed_tokens
+                    else:
+                        cur_len += 750
+                elif cont["type"] == "video_url":
+                    if precomputed_tokens is not None:
+                        cur_len += precomputed_tokens
+                    else:
+                        cur_len += 5000
+                elif cont["type"] == "text":
+                    cur_len += len(cont["text"].split()) * 1.5
+                    if "audio_text" in cont:
+                        cur_len = max(cur_len, len(cont["text"]))
+                else:
+                    raise TypeError(f"Encountered invalid content type {cont['type']}")
+        return cur_len
+
     def _estimate_data_tokens(self, data_list):
         lengths = []
         pbar = tqdm(
@@ -98,38 +167,7 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             disable=dist.get_rank() != 0,
         )
         for data in data_list:
-            if "chosen" in data or "rejected" in data:
-                raise ValueError("Preference learning is not supported for now.")
-            messages = data["messages"]
-            cur_len = 0
-            for message in messages:
-                content = message["content"]
-                for cont in content:
-                    precomputed_tokens = getattr(cont, "precomputed_tokens", None)
-                    # In case arrow where every place has a field
-                    if cont["type"] == "image_url":
-                        if precomputed_tokens is not None:
-                            cur_len += precomputed_tokens
-                        else:
-                            cur_len += 2000
-                    elif cont["type"] == "audio_url":
-                        if precomputed_tokens is not None:
-                            cur_len += precomputed_tokens
-                        else:
-                            cur_len += 750
-                    elif cont["type"] == "video_url":
-                        if precomputed_tokens is not None:
-                            cur_len += precomputed_tokens
-                        else:
-                            cur_len += 5000
-                    elif cont["type"] == "text":
-                        cur_len += len(cont["text"].split()) * 1.5
-                        if "audio_text" in cont:
-                            cur_len = max(cur_len, len(cont["text"]))
-                    else:
-                        raise TypeError(
-                            f"Encountered invalid content type {cont['type']}"
-                        )
+            cur_len = self.estimate_data_tokens_per_row(data)
             lengths.append(cur_len)
             pbar.update(1)
         pbar.close()

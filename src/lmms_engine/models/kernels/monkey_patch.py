@@ -158,6 +158,17 @@ def apply_liger_kernel_to_kino_qwen2_5_vl(
     from ..qwen2_5_vl_audio import modeling_qwen2_5_vl as kino_modeling_qwen2_5_vl
     from .qwen2_5_vl_liger import lce_forward as qwen2_5_vl_lce_forward
 
+    if use_rmpad:
+
+        def wrap_forward(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(use_rmpad=use_rmpad, *args, **kwargs)
+
+            return wrapper
+
+        qwen2_5_vl_lce_forward = wrap_forward(qwen2_5_vl_lce_forward)
+
     if rope:
         modeling_qwen2_5_vl.apply_multimodal_rotary_pos_emb = (
             liger_multimodal_rotary_pos_emb
