@@ -4,10 +4,12 @@ import numpy as np
 from PIL.Image import Image
 from transformers import Qwen2_5_VLProcessor
 
-from ..vision_audio.kino_qwen2_5_vl import KinoQwen2_5_DataProcessor
+from .base_qwen2_5_vl_processor import BaseQwen2_5_DataProcessor
+from .factory import register_processor
 
 
-class Qwen2_5_VLDataProcessor(KinoQwen2_5_DataProcessor):
+@register_processor("qwen2_5_vl")
+class Qwen2_5_VLDataProcessor(BaseQwen2_5_DataProcessor):
     def _build_processor(self):
         processor = Qwen2_5_VLProcessor.from_pretrained(self.config.processor_name)
         if self.config.max_pixels:
