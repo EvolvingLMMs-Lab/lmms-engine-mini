@@ -118,6 +118,11 @@ class Hf_Trainer(BaseTrainer):
         if trainer.deepspeed:
             trainer.save_model(output_dir)
             return
+        if self.config.trainer_args.fsdp2:
+            # For fsdp we merge the shards into a single checkpoint after the training is done
+            if trainer.processing_class is not None:
+                trainer.processing_class.save_pretrained(output_dir)
+            return
 
         state_dict = trainer.model.state_dict()
         if trainer.args.should_save:

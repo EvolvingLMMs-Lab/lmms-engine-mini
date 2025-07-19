@@ -4,6 +4,7 @@ import importlib
 import torch
 import torch.distributed.checkpoint as dist_cp
 from accelerate import init_empty_weights
+from transformers import AutoProcessor
 
 from lmms_engine.models.factory import ModelFactory
 
