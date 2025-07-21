@@ -95,7 +95,7 @@ class DataUtilities:
                         data_list.append(data)
                     Logging.info(f"Dataset size: {len(data)}")
                     data_folder_list.extend([data_folder] * len(data))
-                    data_list = concatenate_datasets(data_list)
+                data_list = concatenate_datasets(data_list)
                 return data_list, data_folder_list
 
             for data, data_folder, data_path in zip(
