@@ -296,6 +296,14 @@ class LLaVATrainer(Trainer):
                     weight_to_save, os.path.join(output_dir, f"mm_projector.bin")
                 )
         else:
+            if self.args.fsdp2:
+                from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+
+                checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
+                run_dir = self._get_output_dir(trial=trial)
+                output_dir = os.path.join(run_dir, checkpoint_folder)
+                if self.processing_class is not None:
+                    self.processing_class.save_pretrained(output_dir)
             super(LLaVATrainer, self)._save_checkpoint(model, trial)
 
     def compute_loss(

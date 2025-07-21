@@ -45,6 +45,12 @@ def main(args):
     )
     model.load_state_dict(state_dict["model"])
     model.save_pretrained(args.output_dir)
+    try:
+        processor_path = args.input_dir.split("/")[:-1].join("/")
+        processor = AutoProcessor.from_pretrained(processor_path)
+        processor.save_pretrained(args.output_dir)
+    except Exception as e:
+        print(f"Failed to save processor: {e}")
 
 
 if __name__ == "__main__":
