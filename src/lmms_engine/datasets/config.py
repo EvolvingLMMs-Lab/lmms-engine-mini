@@ -13,6 +13,7 @@ class DatasetConfig:
     dataset_path: str
     processor_config: Union[dict, ProcessorConfig]
     shuffle: bool = True
+    eval_dataset_path: Optional[str] = None
     object_storage: Optional[Literal["azure", "gcs", "none"]] = "none"
     bucket_name: Optional[str] = None
     packing: Optional[bool] = False

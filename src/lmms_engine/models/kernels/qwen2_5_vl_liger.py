@@ -92,7 +92,7 @@ def lce_forward(
     logits = None
 
     # if in training mode, don't materialize logits
-    if self.training and (labels is not None):
+    if labels is not None:
         if use_rmpad:
             labels = labels.view(-1)[word_idx.long()]
             # We need to shift the tokens according to seq lens
