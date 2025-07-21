@@ -3,6 +3,7 @@ import os
 import random
 import shutil
 from abc import ABC, abstractmethod
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -26,12 +27,23 @@ class BaseTrainer(ABC):
 
     def __init__(self, config: TrainerConfig) -> None:
         self.train_dataset_config = config.dataset_config
+        if config.dataset_config.eval_dataset_path is not None:
+            self.eval_dataset_config = deepcopy(config.dataset_config)
+            # Never use packing for eval dataset
+            self.eval_dataset_config.packing = False
+            self.eval_dataset_config.dataset_path = (
+                config.dataset_config.eval_dataset_path
+            )
         self.model_config = config.model_config
         self.config = config
         self.lora_configs = config.lora_configs
 
     def build(self):
         self.model = self._build_model()
+        if self.config.dataset_config.eval_dataset_path is not None:
+            self.eval_dataset = self._build_eval_dataset()
+        else:
+            self.eval_dataset = None
         self.train_dataset = self._build_train_dataset()
         if self.model_config.pretrain_mm_mlp_adapter is not None:
             self._load_mm_projector()
@@ -134,6 +146,11 @@ class BaseTrainer(ABC):
 
     def _build_train_dataset(self):
         dataset = DatasetFactory.create_dataset(self.train_dataset_config)
+        dataset.build()
+        return dataset
+
+    def _build_eval_dataset(self):
+        dataset = DatasetFactory.create_dataset(self.eval_dataset_config)
         dataset.build()
         return dataset
 

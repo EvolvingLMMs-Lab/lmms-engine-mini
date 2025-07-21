@@ -34,6 +34,7 @@ class Hf_Trainer(BaseTrainer):
                 args=self.config.trainer_args,
                 data_collator=self.train_dataset.get_collator(),
                 train_dataset=self.train_dataset,
+                eval_dataset=self.eval_dataset,
                 processing_class=self.train_dataset.processor,
             )
         elif self.config.trainer_args_type == "dpo":

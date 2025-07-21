@@ -175,6 +175,12 @@ class LLaVATrainer(Trainer):
         else:
             return RandomSampler(self.train_dataset)
 
+    def _get_eval_sampler(self, eval_dataset: Optional[Dataset] = None):
+        if eval_dataset is None or not has_length(eval_dataset):
+            return None
+
+        return RandomSampler(eval_dataset)
+
     def create_optimizer(self):
         """
         Setup the optimizer.
