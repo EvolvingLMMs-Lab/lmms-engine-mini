@@ -42,26 +42,19 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             overlong_indices = [
                 i for i, length in enumerate(self.data_lengths) if length > seq_len
             ]
+            overlong_indices = set(overlong_indices)
+            total_indices = set(range(len(self.data_list)))
+            select_indices = total_indices - overlong_indices
             if isinstance(self.data_list, HFDataset):
-                self.data_list = self.data_list.select(
-                    [i for i in range(len(self.data_list)) if i not in overlong_indices]
-                )
+                self.data_list = self.data_list.select(select_indices)
             else:
                 self.data_list = [
                     self.data_list[i]
                     for i in range(len(self.data_list))
                     if i not in overlong_indices
                 ]
-            self.data_folder = [
-                self.data_folder[i]
-                for i in range(len(self.data_folder))
-                if i not in overlong_indices
-            ]
-            self.data_lengths = [
-                length
-                for i, length in enumerate(self.data_lengths)
-                if i not in overlong_indices
-            ]
+            self.data_folder = [self.data_folder[i] for i in select_indices]
+            self.data_lengths = [self.data_lengths[i] for i in select_indices]
             Logging.info(
                 f"Filter overlong data done, original length: {original_length}, new length: {len(self.data_list)}"
             )
@@ -99,7 +92,9 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
             self.data_lengths = self.data_list.map(
                 lambda x: {"length": self.estimate_data_tokens_per_row(x)},
                 num_proc=cpu_count() // 2,
-            ).select_columns("length")["length"]
+            ).select_columns("length")
+            self.data_lengths = self.data_lengths.to_list()
+            self.data_lengths = [da["length"] for da in self.data_lengths]
         else:
             self.data_lengths = (
                 self._estimate_data_tokens(self.data_list)
@@ -180,8 +175,7 @@ class BaseDataset(Dataset, LMMsDatasetMixin):
         result = []
         current_concatenated_length = 0
         current_list = []
-        for i in range(len(lengths)):
-            cur_length = lengths[i]
+        for i, cur_length in enumerate(lengths):
             if cur_length + current_concatenated_length <= max_length:
                 current_concatenated_length += cur_length
                 current_list.append(i)
