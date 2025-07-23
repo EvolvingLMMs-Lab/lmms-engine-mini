@@ -1,5 +1,5 @@
 import argparse
-import importlib
+from pathlib import Path
 
 import torch
 import torch.distributed.checkpoint as dist_cp
@@ -32,6 +32,13 @@ def parse_args():
 def main(args):
     model_path = args.model_name_or_class
     model_cls = ModelFactory.create_model(model_path)
+    try:
+        input_dir = Path(args.input_dir)
+        processor_path = str(input_dir.parent)
+        processor = AutoProcessor.from_pretrained(processor_path)
+        processor.save_pretrained(args.output_dir)
+    except Exception as e:
+        print(f"Failed to save processor: {e}")
     model = model_cls.from_pretrained(
         model_path,
         attn_implementation="sdpa",
@@ -45,12 +52,6 @@ def main(args):
     )
     model.load_state_dict(state_dict["model"])
     model.save_pretrained(args.output_dir)
-    try:
-        processor_path = args.input_dir.split("/")[:-1].join("/")
-        processor = AutoProcessor.from_pretrained(processor_path)
-        processor.save_pretrained(args.output_dir)
-    except Exception as e:
-        print(f"Failed to save processor: {e}")
 
 
 if __name__ == "__main__":

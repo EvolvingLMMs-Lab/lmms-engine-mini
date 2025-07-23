@@ -61,8 +61,13 @@ class LLaVATrainer(Trainer):
                     "output_dtype": torch_dtype,
                 },
                 auto_wrap_policy="transformer_based_wrap",
-                transformer_cls_names_to_wrap=self.args.transformer_cls_names_to_wrap,
+                transformer_cls_names_to_wrap=self.args.fsdp_config.get(
+                    "transformer_layer_cls_to_wrap", []
+                ),
                 activation_checkpointing=self.args.gradient_checkpointing,
+                reshard_after_forward=self.args.fsdp_config.get(
+                    "reshard_after_forward", True
+                ),
             )
             accelerator_config = self.args.accelerator_config.to_dict()
             dataloader_params = [

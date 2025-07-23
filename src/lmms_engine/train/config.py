@@ -17,7 +17,6 @@ class TrainingArguments(transformers.TrainingArguments):
     use_lora: Optional[bool] = False
     use_rmpad: Optional[bool] = False
     fsdp2: Optional[bool] = False
-    transformer_cls_names_to_wrap: Optional[List[str]] = None
 
 
 @dataclass

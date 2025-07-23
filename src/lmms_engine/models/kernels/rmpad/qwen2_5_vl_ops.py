@@ -363,20 +363,6 @@ def text_model_forward(
 
     position_embeddings = self.rotary_emb(inputs_embeds, position_ids)
     batch_size, seq_length = attention_mask.shape
-    # Different from LM, here is 3D rope
-    # (3, bs, seq_len)
-    # So we unpad for each D (temporal, height, width)
-    position_ids_unpadded = [[] for _ in range(batch_size)]
-    for pos_id in position_ids:
-        pos_id_unpadded, _, pos_seq_lens, _ = _unpad_input(pos_id, attention_mask)
-        for bs in range(batch_size):
-            start = pos_seq_lens[bs]
-            end = pos_seq_lens[bs + 1]
-            # Expand the bs dim
-            position_ids_unpadded[bs].append(pos_id_unpadded[start:end].unsqueeze(1))
-    # Then this is split in to a list with each element to its correspond (3, seq_len)
-    position_ids_unpadded = [torch.stack(pos_id) for pos_id in position_ids_unpadded]
-    # TODO: Validate if this is okay
     causal_mask = attention_mask
     # inputs_embeds, indices, cu_seq_lens, _ = _unpad_input(
     #     inputs_embeds.unsqueeze(-1), attention_mask
